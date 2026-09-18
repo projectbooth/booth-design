@@ -134,22 +134,31 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    `json:"role"` tags). The `normalizeMembership`/`normalizeIdentity` adapter this
    repo built to isolate the old shape is gone — `src/lib/api/types.ts` consumes core's
    response directly now.
-5. **How a `native`-mode module's UI gets delivered into this shell** — resolved by
-   [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md)
+5. ~~How a `native`-mode module's UI gets delivered into this shell~~ — **resolved and
+   wired in.** [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md)
    (npm package, mounted via `src/lib/nativeModules.ts`'s registry) and
    [ADR 0031](../booth-architecture/decisions/0031-native-module-props-contract.md)
-   (the `{ workspace, role, theme }` prop contract this repo proposed, now the
-   standard every native module implements). **Still open, and new:**
-   `booth-module-store` has actually published `@projectbooth/module-store-ui@0.1.0` —
-   to GitHub Packages (`npm.pkg.github.com`), not public npm, which is why an earlier
-   check of this repo said "not published yet" (it was checking the wrong registry).
-   `.npmrc` here now points `@projectbooth` at that registry, matching
-   `booth-module-store`'s own. **Blocked on registry read access in this environment**:
-   `npm view`/`npm install` against `npm.pkg.github.com` 403s — "token provided does
-   not match expected scopes" — with the credentials available here, which lack
-   `read:packages`. The actual wiring (`src/nativeModuleRegistrations.ts` → import
-   `ModuleStoreApp` from `@projectbooth/module-store-ui`, add it to
-   `package.json`'s dependencies, register it at `MODULE_STORE_SLOT_ID`) is a five-line
-   change ready to make the moment that access exists — deliberately not made blind,
-   since committing an unverified dependency bump (wrong version, wrong export name,
-   `npm install` failing in CI) is worse than leaving this documented and pending.
+   (the `{ workspace, role, theme }` prop contract this repo proposed) are both
+   implemented: `@projectbooth/module-store-ui@0.1.0` is a real dependency (from
+   GitHub Packages, `npm.pkg.github.com` — see `.npmrc`; CI's `packages: read`
+   permission and `actions/setup-node`'s `registry-url`/`scope` inputs handle auth
+   there), registered in `src/nativeModuleRegistrations.ts`, and its shipped
+   `ModuleStoreAppProps` type-checks cleanly against this repo's `NativeModuleProps` —
+   confirmed by reading its `.d.ts`, not assumed. Pinned by
+   `src/__tests__/nativeModuleRegistrations.test.ts`.
+6. **New: `@projectbooth/module-store-ui@0.1.0`'s own API calls will 401 against a
+   real booth-core.** Its bundled `web/src/api/client.ts` still sends `credentials:
+   "include"` and attaches no bearer token — the exact wrong cookie-based auth
+   assumption ADR 0032 corrected in this repo, just not yet on that side (timing: ADR
+   0032 and this package's publish landed the same day). There's currently no prop or
+   mechanism for this shell to hand it the access token it holds in
+   `src/lib/auth/tokenStore.ts` — `ModuleStoreAppProps` has no `accessToken` field.
+   This is exactly the open item ADR 0032's own consequences section flagged ("the
+   exact mechanism for how a mounted native component accesses the token booth-design
+   obtained isn't specified... left as an implementation detail between booth-design
+   and native modules, escalating only if it turns out to need standardizing") —
+   flagged to `booth-module-store`'s agent directly, proposing an `accessToken: string`
+   addition to `ModuleStoreAppProps` (same props-not-context shape ADR 0031 already
+   established) rather than resolved unilaterally here. Registered the component
+   anyway rather than leaving it out — it's the real integration point and correct
+   structurally, just visibly broken against a real deployment until this lands.

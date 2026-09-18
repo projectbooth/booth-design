@@ -9,9 +9,10 @@ name: CI
 # so there's no layer-3 real-cluster/CRD workflow or helm-lint job here the way
 # booth-core/booth-module-store have. "Contract tests" for this repo means validating
 # this shell's own assumptions against contracts/module-manifest.md's navGroup and
-# uiIntegrationMode enums (src/lib/__tests__/manifest.test.ts) and against booth-core's
-# actual /api/me response shape (src/lib/api/__tests__/types.test.ts) — both run as
-# part of the ordinary test suite below, not a separate job.
+# uiIntegrationMode enums (src/lib/__tests__/manifest.test.ts), and that the real
+# @projectbooth/module-store-ui package actually satisfies the NativeModuleProps
+# contract it's registered against (src/__tests__/nativeModuleRegistrations.test.ts)
+# — both run as part of the ordinary test suite below, not a separate job.
 on:
   push:
     branches: [main]
@@ -19,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  packages: read # npm ci needs to pull @projectbooth/module-store-ui from GitHub Packages
 
 jobs:
   test:
@@ -30,8 +32,14 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+          # Scopes @projectbooth to GitHub Packages (matching the committed .npmrc);
+          # everything else still resolves from the default public npm registry.
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@projectbooth"
 
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Type check
         run: npm run typecheck
