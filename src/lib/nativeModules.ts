@@ -10,10 +10,10 @@ import type { WorkspaceRole } from "./api/types";
  * dependency and mounts it here. This registry's shape was confirmed correct — no
  * rework, just modules to register (see src/nativeModuleRegistrations.ts).
  *
- * The prop contract below (workspace/role/theme) is this repo's proposal, sent to
- * booth-module-store as its first real consumer (contracts/ui-integration.md: "not yet
- * specified; booth-design and booth-module-store are working this out"). If it settles
- * differently, update this type — it's the one place every registration goes through.
+ * The prop contract below is now pinned in contracts/ui-integration.md: workspace/
+ * role/theme by ADR 0031, getAccessToken by ADR 0033. If it ever needs to change
+ * again, that's a coordinator-level contract change, not something to redecide here
+ * unilaterally the way the first round (ADR 0030/0031) got proposed from this side.
  */
 
 export interface NativeModuleProps {
@@ -27,6 +27,18 @@ export interface NativeModuleProps {
    *  attribute on <html> (src/lib/theme.ts); this is only for JS-driven theme
    *  decisions (e.g. a chart color scheme) that CSS alone can't express. */
   theme: "dark" | "light";
+  /**
+   * Returns this shell's current bearer token (src/lib/auth's OIDC PKCE flow, ADR
+   * 0032), or null if not yet authenticated / logged out. A callback, not a plain
+   * `accessToken: string` value — ADR 0033's whole point: a value captured at mount
+   * (or at whatever render last passed a fresh one) goes stale the moment the
+   * in-memory token silently refreshes, with no guarantee that refresh triggers a
+   * re-render of every mounted native module. A module must call this fresh
+   * immediately before each of its own API requests, never cache the result, and
+   * treat `null` as "omit the Authorization header" rather than sending the literal
+   * string "Bearer null".
+   */
+  getAccessToken: () => string | null;
 }
 
 const registry = new Map<string, ComponentType<NativeModuleProps>>();
