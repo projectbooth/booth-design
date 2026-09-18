@@ -21,7 +21,10 @@ src/lib/session.tsx    identity + active-workspace context (ADR 0025)
 src/lib/manifest.ts    navGroup/uiIntegrationMode contract types + grouping logic
                        (contract tests live in src/lib/__tests__/manifest.test.ts)
 src/lib/nativeModules.ts  mount-point registry for native-mode modules' own React
-                       components — see "Open questions" below
+                       components (ADR 0030) + the NativeModuleProps contract
+src/nativeModuleRegistrations.ts  where each native module's package gets registered
+                       (imported once from main.tsx) — Module Store's entry is
+                       pending, see "Open questions" below
 src/lib/theme.ts       light/dark toggle (data-theme attribute)
 src/styles/tokens.css  design tokens: placeholder-brand palette, spacing, typography
 src/components/ui/     component library: Button, StatusBadge, DataTable, Input,
@@ -71,33 +74,44 @@ Carried over from `agent-briefs/design.md`:
    as a nav group.
 
 Found while building against the real `booth-core` and `booth-module-store` repos
-(not just their docs), rather than resolved unilaterally:
+(not just their docs). #3 and #4 are `booth-core` bugs, flagged there — no action
+needed on this side beyond the existing workaround until they ship. #5 was resolved by
+ADR 0030; its follow-up (the concrete package/prop contract) is still open, now being
+worked out directly with `booth-module-store` rather than guessed at unilaterally:
 
 3. **`GET /api/modules` doesn't return `uiIntegrationMode`.** `contracts/module-
    manifest.md` requires it whenever `hasOwnUi` is true, and `ContentPane` needs it to
    pick native vs. iframe-proxy — but `booth-core`'s `moduleView` struct
    (`internal/api/server.go`) omits it, even though the underlying `BoothModule` CRD
    spec has the field. Until core adds it, `ContentPane` defaults every module to
-   `native` (wrong for iframe-proxy modules) and logs nothing beyond a code comment —
-   flagged here rather than guessed around further.
+   `native` (wrong for iframe-proxy modules). **Status (2026-09-18): not yet shipped**
+   — `booth-core`'s `main` still lacks the field as of this check. Once it lands,
+   `ContentPane`'s fallback comment marks exactly what to remove.
 4. **`GET /api/me`'s JSON casing is inconsistent.** `memberships`/`active` are
    lowerCamelCase keys at the top level, but their nested `Workspace`/`Role` fields
    serialize capitalized — `auth.Membership` has no `json` struct tags. Isolated behind
    `normalizeMembership`/`normalizeIdentity` (`src/lib/api/types.ts`) so a future core-
-   side fix (adding tags) only needs a one-line change here, but the inconsistency
-   itself is worth a small core-side fix rather than every consumer adapting around it
-   forever.
-5. **How a `native`-mode module's UI actually gets delivered into this shell isn't
-   decided.** `contracts/ui-integration.md`'s literal text describes `native` as
-   *booth-design* authoring a module's UI against that module's data API. But
-   `booth-module-store`'s already-built `ModuleStoreApp` is a complete, self-contained
-   React component whose own comment says this shell should mount it "with no wiring
-   beyond rendering it" — which only works if native modules ship their own component
-   for this shell to mount (same micro-frontend shape as iframe-proxy, minus the
-   iframe), not if booth-design writes their pages itself. `src/lib/nativeModules.ts`
-   builds a mount-point registry for the second reading (since it's the one code
-   already exists for) and documents the ambiguity; the Module Store slot
-   (`src/pages/ModuleStorePage.tsx`) is wired through it but has nothing registered
-   yet — pending both an answer here and a decided delivery mechanism (npm package?
-   monorepo import? something else) for handing `ModuleStoreApp` to this shell's
-   bundle at build or run time.
+   side fix (adding tags) only needs a one-line change here. **Status (2026-09-18): not
+   yet shipped.** Once core adds tags and the shape stabilizes, drop the adapter and
+   consume `RawIdentity`'s fields directly — the two unit tests in
+   `src/lib/api/__tests__/types.test.ts` pin the current (workaround-needing) shape and
+   should fail first if core's response shape changes.
+5. **How a `native`-mode module's UI gets delivered into this shell — resolved by
+   [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md):**
+   each native-mode module publishes its own React component as a versioned npm
+   package (`@projectbooth/<module-id>-ui`); this shell adds it as an ordinary
+   dependency and mounts it via `src/lib/nativeModules.ts`'s registry — confirmed as
+   the right shape, no rework needed. **Still open:** the exact prop/shared-context
+   contract a mounted component receives. This repo proposed plain props —
+   `{ workspace, role, theme }` (`NativeModuleProps` in `src/lib/nativeModules.ts`),
+   not a shared React context, since a context would mean `module-store-ui` importing
+   something `booth-design` exports, inverting the dependency direction ADR 0030 just
+   fixed — to `booth-module-store`'s agent directly, along with a real bug it surfaces
+   (`web/src/api/client.ts` never sends `X-Workspace`, so its calls can't be scoped to
+   a workspace once mounted for real). Awaiting their response and their first publish
+   of `@projectbooth/module-store-ui` (checked npm 2026-09-18: not published yet).
+   `src/nativeModuleRegistrations.ts` is where that package gets registered once it
+   exists — everything on this side is ready, down to the prop shape, pending that
+   package landing. If the props-vs-context question and field list end up needing to
+   live in `contracts/ui-integration.md` rather than just this conversation, said so in
+   that message too.
