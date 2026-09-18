@@ -1,6 +1,8 @@
 import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Switch } from "@/components/ui/Switch";
+import { logout } from "@/lib/auth/authClient";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 
@@ -15,12 +17,15 @@ export function SettingsPage() {
       {identity && (
         <div className="mb-6 flex items-center gap-4 rounded-lg border border-border p-5">
           <Avatar label={identity.email} size="md" />
-          <div>
+          <div className="flex-1">
             <div className="text-[14.5px] font-semibold text-text">{identity.email}</div>
             <div className="text-[13px] text-text-muted">
               {activeWorkspace ? `${activeWorkspace.role} in ${activeWorkspace.workspace}` : "No active workspace"}
             </div>
           </div>
+          <Button variant="secondary" size="sm" onClick={() => void logout()}>
+            Log out
+          </Button>
         </div>
       )}
 

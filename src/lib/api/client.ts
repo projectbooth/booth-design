@@ -1,11 +1,13 @@
-import type { Identity, ModuleSummary, RawIdentity } from "./types";
-import { normalizeIdentity } from "./types";
+import type { Identity, ModuleSummary } from "./types";
+import { getAccessToken } from "@/lib/auth/tokenStore";
+import { handleUnauthorized } from "@/lib/auth/authClient";
 
 /**
  * Thin fetch wrapper for booth-core's gateway-fronted API (contracts/core-platform-api.md).
- * Auth is cookie/session-based through the browser's existing session — same assumption
- * booth-module-store's ModuleStoreApp.tsx documents for its own calls — so no token
- * handling lives here.
+ * Auth is a bearer token, not a cookie/session (ADR 0032) — booth-core's middleware has
+ * no cookie mechanism at all and requires `Authorization: Bearer <token>` on every
+ * request. The token comes from src/lib/auth's client-side OIDC PKCE flow; AuthGate
+ * guarantees one is in memory before anything using this client gets a chance to render.
  */
 
 export class ApiError extends Error {
@@ -21,13 +23,21 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit & { workspace?: string }): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("Accept", "application/json");
+  const token = getAccessToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init?.workspace) {
     // ADR 0025 §6: the client sends the active workspace slug on every API call;
     // core validates it against the token and forwards X-Booth-Workspace/-Role.
     headers.set("X-Workspace", init.workspace);
   }
 
-  const res = await fetch(path, { ...init, headers, credentials: "include" });
+  const res = await fetch(path, { ...init, headers });
+  if (res.status === 401) {
+    // The token in memory is missing/invalid/expired in a way the silent-refresh timer
+    // didn't catch (e.g. revoked server-side) — no retry loop, straight back to login.
+    handleUnauthorized();
+    throw new ApiError(401, "Not authenticated");
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, body || res.statusText);
@@ -37,8 +47,7 @@ async function request<T>(path: string, init?: RequestInit & { workspace?: strin
 }
 
 export async function getMe(): Promise<Identity> {
-  const raw = await request<RawIdentity>("/api/me");
-  return normalizeIdentity(raw);
+  return request<Identity>("/api/me");
 }
 
 export async function listModules(workspace?: string): Promise<ModuleSummary[]> {

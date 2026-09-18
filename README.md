@@ -12,19 +12,30 @@ its own — `booth-core` hosts this shell and fronts its API calls through its g
 (ARCHITECTURE.md §3); locally, Vite proxies `/api` to a `booth-core` instance
 (`BOOTH_DESIGN_DEV_BACKEND`, defaults to `http://localhost:8080`).
 
+Authentication is a client-side OAuth2 Authorization Code + PKCE flow against the
+configured OIDC provider (ADR 0032) — `booth-core` has no cookie/session mechanism at
+all, only bearer-token verification. See "Authentication" below.
+
 ## Repo layout
 
 ```
+src/lib/auth/          client-side OIDC PKCE flow (ADR 0032): pkce.ts (RFC 7636
+                       crypto), discovery.ts (OIDC discovery doc), config.ts (issuer/
+                       client ID), tokenStore.ts (in-memory token state),
+                       authClient.ts (login/callback/refresh/logout), AuthGate.tsx
+                       (the boot-time gate every route sits behind)
 src/lib/api/          typed client + wire types for booth-core's actual /api/me,
-                       /api/modules, /api/modules/{id}/iframe-url endpoints
+                       /api/modules, /api/modules/{id}/iframe-url endpoints —
+                       attaches the bearer token from src/lib/auth on every call
 src/lib/session.tsx    identity + active-workspace context (ADR 0025)
 src/lib/manifest.ts    navGroup/uiIntegrationMode contract types + grouping logic
                        (contract tests live in src/lib/__tests__/manifest.test.ts)
 src/lib/nativeModules.ts  mount-point registry for native-mode modules' own React
                        components (ADR 0030) + the NativeModuleProps contract
+                       (ADR 0031: workspace, role, theme)
 src/nativeModuleRegistrations.ts  where each native module's package gets registered
                        (imported once from main.tsx) — Module Store's entry is
-                       pending, see "Open questions" below
+                       ready to wire in, see "Open questions" below
 src/lib/theme.ts       light/dark toggle (data-theme attribute)
 src/styles/tokens.css  design tokens: placeholder-brand palette, spacing, typography
 src/components/ui/     component library: Button, StatusBadge, DataTable, Input,
@@ -37,13 +48,51 @@ src/pages/             Home, Settings, Module Store slot, the dynamic module-rou
                        resolver, and the zero-workspace onboarding state
 ```
 
+## Authentication
+
+Per ADR 0032: an unauthenticated visit redirects to the configured OIDC provider
+(Keycloak by default), no client secret (public SPA client). The access token lives in
+memory only for the tab's lifetime — never `localStorage` — and is attached as
+`Authorization: Bearer <token>` on every `src/lib/api/client.ts` call. A refresh token,
+if the provider issues one, silently renews the access token before it expires. Logout
+clears local state and ends the session at the provider's end-session endpoint.
+
+Requires two build-time env vars (see `.env.example`), the same values `booth-core`
+itself is configured with:
+
+```
+VITE_OIDC_ISSUER_URL=https://keycloak.example.com/realms/booth
+VITE_OIDC_CLIENT_ID=booth-design
+```
+
+Chosen over an `/api/config`-style endpoint from core because these are public,
+non-secret values (ADR 0032 says so directly) and adding such an endpoint would be a
+`booth-core` contract change this repo doesn't own — revisit if ops tooling later wants
+runtime reconfiguration without a shell rebuild.
+
+A full page reload loses the in-memory token and re-triggers the redirect — this is the
+ADR's intended shape ("held in memory for the session's lifetime"), not a bug. In
+practice a reload's redirect to Keycloak usually completes silently if the provider
+still has an active browser SSO session; if that friction turns out to matter, a
+`prompt=none` silent-check on boot (a well-known SPA-PKCE pattern) is the natural next
+step, not built here since it's not part of what ADR 0032 asked for.
+
+**Dependency on Keycloak realm config not yet built:** ADR 0025's consequences already
+noted `booth-core` needs to ship a bundled realm config (`workspaces` group structure,
+role mappers); that same realm config also needs to register `booth-design`'s client ID
+as a public client with PKCE enabled and the right redirect URI / CORS "Web Origins"
+allowlist (the token endpoint call in `src/lib/auth/authClient.ts` is a direct
+cross-origin browser fetch to the provider, not proxied through core). This repo can't
+verify that end-to-end until that realm config exists — flagging it here rather than
+assuming a default Keycloak setup would just work.
+
 ## Running locally
 
 ```
 npm install
 npm run dev
-# proxies /api to booth-core; without one running, the shell shows its
-# "couldn't load your session" state rather than crashing
+# proxies /api to booth-core; needs VITE_OIDC_ISSUER_URL/VITE_OIDC_CLIENT_ID set
+# (see "Authentication") to get past the login redirect at all
 ```
 
 ## Testing
@@ -74,44 +123,33 @@ Carried over from `agent-briefs/design.md`:
    as a nav group.
 
 Found while building against the real `booth-core` and `booth-module-store` repos
-(not just their docs). #3 and #4 are `booth-core` bugs, flagged there — no action
-needed on this side beyond the existing workaround until they ship. #5 was resolved by
-ADR 0030; its follow-up (the concrete package/prop contract) is still open, now being
-worked out directly with `booth-module-store` rather than guessed at unilaterally:
+(not just their docs). #3, #4, and the ADR 0030 half of #5 are now resolved:
 
-3. **`GET /api/modules` doesn't return `uiIntegrationMode`.** `contracts/module-
-   manifest.md` requires it whenever `hasOwnUi` is true, and `ContentPane` needs it to
-   pick native vs. iframe-proxy — but `booth-core`'s `moduleView` struct
-   (`internal/api/server.go`) omits it, even though the underlying `BoothModule` CRD
-   spec has the field. Until core adds it, `ContentPane` defaults every module to
-   `native` (wrong for iframe-proxy modules). **Status (2026-09-18): not yet shipped**
-   — `booth-core`'s `main` still lacks the field as of this check. Once it lands,
-   `ContentPane`'s fallback comment marks exactly what to remove.
-4. **`GET /api/me`'s JSON casing is inconsistent.** `memberships`/`active` are
-   lowerCamelCase keys at the top level, but their nested `Workspace`/`Role` fields
-   serialize capitalized — `auth.Membership` has no `json` struct tags. Isolated behind
-   `normalizeMembership`/`normalizeIdentity` (`src/lib/api/types.ts`) so a future core-
-   side fix (adding tags) only needs a one-line change here. **Status (2026-09-18): not
-   yet shipped.** Once core adds tags and the shape stabilizes, drop the adapter and
-   consume `RawIdentity`'s fields directly — the two unit tests in
-   `src/lib/api/__tests__/types.test.ts` pin the current (workaround-needing) shape and
-   should fail first if core's response shape changes.
-5. **How a `native`-mode module's UI gets delivered into this shell — resolved by
-   [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md):**
-   each native-mode module publishes its own React component as a versioned npm
-   package (`@projectbooth/<module-id>-ui`); this shell adds it as an ordinary
-   dependency and mounts it via `src/lib/nativeModules.ts`'s registry — confirmed as
-   the right shape, no rework needed. **Still open:** the exact prop/shared-context
-   contract a mounted component receives. This repo proposed plain props —
-   `{ workspace, role, theme }` (`NativeModuleProps` in `src/lib/nativeModules.ts`),
-   not a shared React context, since a context would mean `module-store-ui` importing
-   something `booth-design` exports, inverting the dependency direction ADR 0030 just
-   fixed — to `booth-module-store`'s agent directly, along with a real bug it surfaces
-   (`web/src/api/client.ts` never sends `X-Workspace`, so its calls can't be scoped to
-   a workspace once mounted for real). Awaiting their response and their first publish
-   of `@projectbooth/module-store-ui` (checked npm 2026-09-18: not published yet).
-   `src/nativeModuleRegistrations.ts` is where that package gets registered once it
-   exists — everything on this side is ready, down to the prop shape, pending that
-   package landing. If the props-vs-context question and field list end up needing to
-   live in `contracts/ui-integration.md` rather than just this conversation, said so in
-   that message too.
+3. ~~`GET /api/modules` didn't return `uiIntegrationMode`~~ — **fixed** (confirmed
+   2026-09-18 against `booth-core`'s current `internal/api/server.go`). `ContentPane`
+   now dispatches correctly; its `native` default is a defensive fallback for the
+   `hasOwnUi: false` case, not a workaround anymore.
+4. ~~`GET /api/me`'s JSON casing was inconsistent~~ — **fixed** (confirmed 2026-09-18
+   against `internal/auth/workspace.go`: `Membership` now carries `json:"workspace"`/
+   `json:"role"` tags). The `normalizeMembership`/`normalizeIdentity` adapter this
+   repo built to isolate the old shape is gone — `src/lib/api/types.ts` consumes core's
+   response directly now.
+5. **How a `native`-mode module's UI gets delivered into this shell** — resolved by
+   [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md)
+   (npm package, mounted via `src/lib/nativeModules.ts`'s registry) and
+   [ADR 0031](../booth-architecture/decisions/0031-native-module-props-contract.md)
+   (the `{ workspace, role, theme }` prop contract this repo proposed, now the
+   standard every native module implements). **Still open, and new:**
+   `booth-module-store` has actually published `@projectbooth/module-store-ui@0.1.0` —
+   to GitHub Packages (`npm.pkg.github.com`), not public npm, which is why an earlier
+   check of this repo said "not published yet" (it was checking the wrong registry).
+   `.npmrc` here now points `@projectbooth` at that registry, matching
+   `booth-module-store`'s own. **Blocked on registry read access in this environment**:
+   `npm view`/`npm install` against `npm.pkg.github.com` 403s — "token provided does
+   not match expected scopes" — with the credentials available here, which lack
+   `read:packages`. The actual wiring (`src/nativeModuleRegistrations.ts` → import
+   `ModuleStoreApp` from `@projectbooth/module-store-ui`, add it to
+   `package.json`'s dependencies, register it at `MODULE_STORE_SLOT_ID`) is a five-line
+   change ready to make the moment that access exists — deliberately not made blind,
+   since committing an unverified dependency bump (wrong version, wrong export name,
+   `npm install` failing in CI) is worse than leaving this documented and pending.
