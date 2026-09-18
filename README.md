@@ -136,29 +136,30 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    response directly now.
 5. ~~How a `native`-mode module's UI gets delivered into this shell~~ — **resolved and
    wired in.** [ADR 0030](../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md)
-   (npm package, mounted via `src/lib/nativeModules.ts`'s registry) and
+   (npm package, mounted via `src/lib/nativeModules.ts`'s registry),
    [ADR 0031](../booth-architecture/decisions/0031-native-module-props-contract.md)
-   (the `{ workspace, role, theme }` prop contract this repo proposed) are both
-   implemented: `@projectbooth/module-store-ui@0.1.0` is a real dependency (from
-   GitHub Packages, `npm.pkg.github.com` — see `.npmrc`; CI's `packages: read`
-   permission and `actions/setup-node`'s `registry-url`/`scope` inputs handle auth
-   there), registered in `src/nativeModuleRegistrations.ts`, and its shipped
-   `ModuleStoreAppProps` type-checks cleanly against this repo's `NativeModuleProps` —
-   confirmed by reading its `.d.ts`, not assumed. Pinned by
+   (`workspace`/`role`/`theme`), and
+   [ADR 0033](../booth-architecture/decisions/0033-native-module-access-token-prop.md)
+   (`getAccessToken`, below) are all implemented: `@projectbooth/module-store-ui@0.3.0`
+   is a real dependency (from GitHub Packages, `npm.pkg.github.com` — see `.npmrc`;
+   CI's `packages: read` permission and `actions/setup-node`'s `registry-url`/`scope`
+   inputs handle auth there), registered in `src/nativeModuleRegistrations.ts`, and its
+   shipped `ModuleStoreAppProps` type-checks cleanly against this repo's
+   `NativeModuleProps` — confirmed by reading its `.d.ts`, not assumed. Pinned by
    `src/__tests__/nativeModuleRegistrations.test.ts`.
-6. **New: `@projectbooth/module-store-ui@0.1.0`'s own API calls will 401 against a
-   real booth-core.** Its bundled `web/src/api/client.ts` still sends `credentials:
-   "include"` and attaches no bearer token — the exact wrong cookie-based auth
-   assumption ADR 0032 corrected in this repo, just not yet on that side (timing: ADR
-   0032 and this package's publish landed the same day). There's currently no prop or
-   mechanism for this shell to hand it the access token it holds in
-   `src/lib/auth/tokenStore.ts` — `ModuleStoreAppProps` has no `accessToken` field.
-   This is exactly the open item ADR 0032's own consequences section flagged ("the
-   exact mechanism for how a mounted native component accesses the token booth-design
-   obtained isn't specified... left as an implementation detail between booth-design
-   and native modules, escalating only if it turns out to need standardizing") —
-   flagged to `booth-module-store`'s agent directly, proposing an `accessToken: string`
-   addition to `ModuleStoreAppProps` (same props-not-context shape ADR 0031 already
-   established) rather than resolved unilaterally here. Registered the component
-   anyway rather than leaving it out — it's the real integration point and correct
-   structurally, just visibly broken against a real deployment until this lands.
+6. ~~`@projectbooth/module-store-ui`'s own API calls 401 against a real booth-core~~ —
+   **fixed, and the contract it needed is now pinned.** This repo's own proposal (an
+   `accessToken: string` value prop) turned out to be the wrong shape: a value captured
+   at mount can go stale the moment this shell's in-memory token silently refreshes
+   (ADR 0032), with no guarantee that refresh re-renders every mounted native module.
+   [ADR 0033](../booth-architecture/decisions/0033-native-module-access-token-prop.md)
+   corrected this to a `getAccessToken: () => string | null` callback instead — a
+   module calls it fresh immediately before each of its own requests rather than
+   caching a value. `NativeModuleProps` and `NativeModulePane` (which passes
+   `src/lib/auth/tokenStore.ts`'s `getAccessToken` through **by reference**, never
+   wrapped or called-and-stored) both implement this now, pinned by a test that
+   mutates token state *after* the component captured the prop and asserts the
+   function still reports the new value — the specific staleness bug the callback
+   shape exists to prevent. `module-store-ui@0.3.0`'s bundled client now calls it and
+   attaches `Authorization: Bearer` (confirmed by reading its built output, not
+   assumed) — `credentials: "include"` is gone.

@@ -1,13 +1,18 @@
 import type { ModuleSummary } from "@/lib/api/types";
 import { getNativeModule } from "@/lib/nativeModules";
+import { getAccessToken } from "@/lib/auth/tokenStore";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 
 /**
  * contracts/ui-integration.md's `native` mode content pane. Renders whatever's
- * registered for this module id, passing the ADR 0030 prop contract (workspace, role,
- * theme — see src/lib/nativeModules.ts). Falls back to a reserved-slot placeholder
- * when nothing is registered yet, rather than a blank pane or a crash.
+ * registered for this module id, passing the ADR 0031/0033 prop contract (workspace,
+ * role, theme, getAccessToken — see src/lib/nativeModules.ts). `getAccessToken` is
+ * tokenStore.ts's function passed straight through by reference, not called here and
+ * captured as a value — ADR 0033 requires the mounted component to call it itself,
+ * fresh, immediately before each of its own requests, so it never reads a token that's
+ * gone stale after a silent refresh. Falls back to a reserved-slot placeholder when
+ * nothing is registered yet, rather than a blank pane or a crash.
  */
 export function NativeModulePane({ module }: { module: ModuleSummary }) {
   const Component = getNativeModule(module.id);
@@ -15,7 +20,14 @@ export function NativeModulePane({ module }: { module: ModuleSummary }) {
   const { theme } = useTheme();
 
   if (Component && activeWorkspace) {
-    return <Component workspace={activeWorkspace.workspace} role={activeWorkspace.role} theme={theme} />;
+    return (
+      <Component
+        workspace={activeWorkspace.workspace}
+        role={activeWorkspace.role}
+        theme={theme}
+        getAccessToken={getAccessToken}
+      />
+    );
   }
 
   return (
