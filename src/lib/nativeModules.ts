@@ -1,33 +1,41 @@
 import type { ComponentType } from "react";
+import type { WorkspaceRole } from "./api/types";
 
 /**
  * Mount-point registry for `native`-mode modules' own React components.
  *
- * OPEN QUESTION (flagged, not resolved here — see repo README): contracts/ui-
- * integration.md's literal text says `native` means "booth-design renders it using
- * the shared component library" — i.e. booth-design authors each module's UI against
- * that module's data API. But booth-module-store's actual `ModuleStoreApp` (its
- * web/src/ModuleStoreApp.tsx) is a complete, self-contained React component that its
- * own README says booth-design should mount "with no wiring beyond rendering it" —
- * which only works if *every* native module ships its own component for this shell to
- * mount, the same micro-frontend shape iframe-proxy uses minus the iframe. This
- * registry is built for that second reading, since it's the one booth-module-store
- * already committed code to. If the first reading is what's actually intended for
- * modules besides Module Store, this registry becomes unnecessary and those modules'
- * pages get built directly in src/pages instead.
+ * RESOLVED by ADR 0030 (../booth-architecture/decisions/0030-native-module-ui-
+ * delivered-as-npm-package.md): a native-mode module ships its own UI as a versioned
+ * npm package (`@projectbooth/<module-id>-ui`), booth-design adds it as an ordinary
+ * dependency and mounts it here. This registry's shape was confirmed correct — no
+ * rework, just modules to register (see src/nativeModuleRegistrations.ts).
  *
- * Delivery mechanism (npm package? monorepo path import? something else) is also not
- * decided — nothing here assumes one. A real module wires itself in by calling
- * `registerNativeModule` from wherever its bundle ends up loaded.
+ * The prop contract below (workspace/role/theme) is this repo's proposal, sent to
+ * booth-module-store as its first real consumer (contracts/ui-integration.md: "not yet
+ * specified; booth-design and booth-module-store are working this out"). If it settles
+ * differently, update this type — it's the one place every registration goes through.
  */
 
-const registry = new Map<string, ComponentType>();
+export interface NativeModuleProps {
+  /** Active workspace slug (ADR 0025) — a module's own API calls need this to set
+   *  X-Workspace themselves; booth-design's gateway proxying doesn't do it for them. */
+  workspace: string;
+  /** Caller's role in that workspace — for client-side gating of owner-only actions
+   *  (server-side enforcement, e.g. ADR 0023's requireAdmin, is authoritative regardless). */
+  role: WorkspaceRole;
+  /** Optional to act on — CSS-only styling already follows the global `data-theme`
+   *  attribute on <html> (src/lib/theme.ts); this is only for JS-driven theme
+   *  decisions (e.g. a chart color scheme) that CSS alone can't express. */
+  theme: "dark" | "light";
+}
 
-export function registerNativeModule(moduleId: string, Component: ComponentType) {
+const registry = new Map<string, ComponentType<NativeModuleProps>>();
+
+export function registerNativeModule(moduleId: string, Component: ComponentType<NativeModuleProps>) {
   registry.set(moduleId, Component);
 }
 
-export function getNativeModule(moduleId: string): ComponentType | undefined {
+export function getNativeModule(moduleId: string): ComponentType<NativeModuleProps> | undefined {
   return registry.get(moduleId);
 }
 

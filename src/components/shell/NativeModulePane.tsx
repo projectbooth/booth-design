@@ -1,17 +1,21 @@
 import type { ModuleSummary } from "@/lib/api/types";
 import { getNativeModule } from "@/lib/nativeModules";
+import { useSession } from "@/lib/session";
+import { useTheme } from "@/lib/theme";
 
 /**
  * contracts/ui-integration.md's `native` mode content pane. Renders whatever's
- * registered for this module id (see src/lib/nativeModules.ts for the mount-point
- * mechanism and the open question about how it gets populated); falls back to a
- * reserved-slot placeholder when nothing is registered yet, rather than a blank pane.
+ * registered for this module id, passing the ADR 0030 prop contract (workspace, role,
+ * theme — see src/lib/nativeModules.ts). Falls back to a reserved-slot placeholder
+ * when nothing is registered yet, rather than a blank pane or a crash.
  */
 export function NativeModulePane({ module }: { module: ModuleSummary }) {
   const Component = getNativeModule(module.id);
+  const { activeWorkspace } = useSession();
+  const { theme } = useTheme();
 
-  if (Component) {
-    return <Component />;
+  if (Component && activeWorkspace) {
+    return <Component workspace={activeWorkspace.workspace} role={activeWorkspace.role} theme={theme} />;
   }
 
   return (
