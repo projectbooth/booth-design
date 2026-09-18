@@ -3,6 +3,13 @@ import { NavSection } from "./NavSection";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { Avatar } from "@/components/ui/Avatar";
 import { BuildIcon, HomeIcon, ManageIcon, SettingsIcon, StoreIcon, ViewIcon } from "@/components/ui/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
+import { logout } from "@/lib/auth/authClient";
 import { groupModulesByNav } from "@/lib/manifest";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -63,10 +70,17 @@ export function NavRail() {
           Settings
         </NavButton>
         {identity && (
-          <div className="mt-1 flex items-center gap-2.5 rounded-md px-2.5 py-1.5">
-            <Avatar label={identity.email} />
-            <span className="truncate text-[13px] font-semibold text-text">{identity.email}</span>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="mt-1 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left outline-none hover:bg-bg-elevated focus-visible:ring-2">
+                <Avatar label={identity.email} />
+                <span className="truncate text-[13px] font-semibold text-text">{identity.email}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[calc(var(--nav-width)-24px)]" align="end">
+              <DropdownMenuItem onSelect={() => void logout()}>Log out</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </nav>

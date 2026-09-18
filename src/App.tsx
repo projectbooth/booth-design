@@ -6,6 +6,7 @@ import { ModuleRoutePage } from "@/pages/ModuleRoutePage";
 import { ModuleStorePage } from "@/pages/ModuleStorePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SessionProvider, useSession } from "@/lib/session";
+import { AuthGate } from "@/lib/auth/AuthGate";
 
 function Gate() {
   const { identity, loading, error, activeWorkspace } = useSession();
@@ -40,10 +41,17 @@ function Gate() {
 
 export function App() {
   return (
-    <BrowserRouter>
-      <SessionProvider>
-        <Gate />
-      </SessionProvider>
-    </BrowserRouter>
+    // AuthGate must sit outside BrowserRouter: it resolves the OIDC callback and
+    // rewrites the address bar via the raw History API (src/lib/auth/authClient.ts)
+    // before BrowserRouter ever reads window.location for its initial route — doing
+    // this the other way around risks BrowserRouter's internal history state getting
+    // out of sync with a URL rewrite it didn't originate.
+    <AuthGate>
+      <BrowserRouter>
+        <SessionProvider>
+          <Gate />
+        </SessionProvider>
+      </BrowserRouter>
+    </AuthGate>
   );
 }
