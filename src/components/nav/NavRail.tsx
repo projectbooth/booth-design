@@ -23,7 +23,8 @@ import { useModules } from "@/lib/useModules";
  */
 export function NavRail() {
   const { modules } = useModules();
-  const { identity } = useSession();
+  const { identity, activeWorkspace } = useSession();
+  const isOwner = activeWorkspace?.role === "owner";
   const { theme, toggleTheme } = useTheme();
   const grouped = groupModulesByNav(modules);
 
@@ -54,9 +55,9 @@ export function NavRail() {
         Module Store
       </NavButton>
 
-      <NavSection label="Build" modules={grouped.build} icon={<BuildIcon width={14} height={14} />} />
-      <NavSection label="View" modules={grouped.view} icon={<ViewIcon width={14} height={14} />} />
-      <NavSection label="Manage" modules={grouped.manage} icon={<ManageIcon width={14} height={14} />} />
+      <NavSection label="Build" modules={grouped.build} isOwner={isOwner} icon={<BuildIcon width={14} height={14} />} />
+      <NavSection label="View" modules={grouped.view} isOwner={isOwner} icon={<ViewIcon width={14} height={14} />} />
+      <NavSection label="Manage" modules={grouped.manage} isOwner={isOwner} icon={<ManageIcon width={14} height={14} />} />
 
       <div className="mt-auto flex flex-col gap-1 border-t border-border-subtle pt-3">
         <button

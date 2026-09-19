@@ -37,6 +37,58 @@ describe("NavSection", () => {
     expect(screen.getByRole("link", { name: /Notebooks/ })).toHaveAttribute("href", "/notebooks");
   });
 
+  describe("adminNavPath entries (ADR 0023)", () => {
+    const storage = module({
+      id: "storage",
+      displayName: "Storage",
+      navPath: "/storage",
+      adminNavPath: "/storage/admin",
+    });
+
+    it("renders an admin link for owners", () => {
+      render(
+        <MemoryRouter>
+          <NavSection label="Manage" icon={null} modules={[storage]} isOwner />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole("link", { name: /Storage admin/ })).toHaveAttribute("href", "/storage/admin");
+    });
+
+    it("renders no admin link for non-owners, even if the module declares one", () => {
+      render(
+        <MemoryRouter>
+          <NavSection label="Manage" icon={null} modules={[storage]} isOwner={false} />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByRole("link", { name: /Storage admin/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "ST Storage" })).toBeInTheDocument();
+    });
+
+    it("renders no admin link for modules that don't declare adminNavPath", () => {
+      render(
+        <MemoryRouter>
+          <NavSection
+            label="Manage"
+            icon={null}
+            modules={[module({ id: "logging", displayName: "Logging", navPath: "/logging" })]}
+            isOwner
+          />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByRole("link", { name: /admin/i })).not.toBeInTheDocument();
+    });
+
+    it("highlights only the admin entry, not the parent module, on the admin route", () => {
+      render(
+        <MemoryRouter initialEntries={["/storage/admin"]}>
+          <NavSection label="Manage" icon={null} modules={[storage]} isOwner />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole("link", { name: /Storage admin/ })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("link", { name: "ST Storage" })).not.toHaveAttribute("aria-current");
+    });
+  });
+
   it("falls back to /<id> when navPath is missing", () => {
     render(
       <MemoryRouter>
