@@ -7,12 +7,16 @@ export interface NavButtonProps {
   icon: ReactNode;
   children: ReactNode;
   indent?: boolean;
+  /** Match `to` exactly rather than as a prefix — needed when another entry's path
+   *  nests beneath this one's (a module's adminNavPath under its navPath). */
+  end?: boolean;
 }
 
-export function NavButton({ to, icon, children, indent }: NavButtonProps) {
+export function NavButton({ to, icon, children, indent, end }: NavButtonProps) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13.5px] font-semibold transition-colors",
