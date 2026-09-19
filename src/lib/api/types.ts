@@ -24,8 +24,10 @@ export interface Identity {
   subject: string;
   email: string;
   memberships: Membership[];
-  /** The workspace the caller most recently validated via X-Workspace (ADR 0025 §6). */
-  active: Membership;
+  /** The workspace the caller most recently validated via X-Workspace (ADR 0025 §6).
+   *  Omitted entirely by booth-core on a first login, before any X-Workspace has been
+   *  sent (ADR 0034) — session.tsx falls back to the first membership. */
+  active?: Membership;
 }
 
 /** GET /api/modules response shape (internal/api/server.go's `moduleView`). */
