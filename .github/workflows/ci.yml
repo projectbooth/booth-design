@@ -4,15 +4,17 @@ name: CI
 # cluster needed. Runs on every push and PR; branch protection on main requires this
 # to pass before merge.
 #
-# booth-design isn't a BoothModule (no manifest/Helm chart of its own — it's mandatory
-# shell chrome hosted directly by booth-core, per MODULE_REGISTRY.md's nav-group note),
-# so there's no layer-3 real-cluster/CRD workflow or helm-lint job here the way
-# booth-core/booth-module-store have. "Contract tests" for this repo means validating
-# this shell's own assumptions against contracts/module-manifest.md's navGroup and
-# uiIntegrationMode enums (src/lib/__tests__/manifest.test.ts), and that the real
-# @projectbooth/module-store-ui package actually satisfies the NativeModuleProps
-# contract it's registered against (src/__tests__/nativeModuleRegistrations.test.ts)
-# — both run as part of the ordinary test suite below, not a separate job.
+# booth-design isn't a BoothModule (no BoothModule manifest — it's the shell chrome
+# modules render into, per MODULE_REGISTRY.md's nav-group note), so there's no layer-3
+# real-cluster/CRD workflow here the way booth-core/booth-module-store have. It does ship
+# a Dockerfile and a Helm chart (charts/booth-design) so booth-e2e can deploy the shell;
+# the `helm` and `image` jobs below keep both honest on every push.
+# "Contract tests" for this repo means validating this shell's own assumptions against
+# contracts/module-manifest.md's navGroup and uiIntegrationMode enums
+# (src/lib/__tests__/manifest.test.ts), and that the real @projectbooth/module-store-ui
+# package actually satisfies the NativeModuleProps contract it's registered against
+# (src/__tests__/nativeModuleRegistrations.test.ts) — both run as part of the ordinary
+# test suite in the `test` job, not a separate one.
 on:
   push:
     branches: [main]
@@ -52,3 +54,56 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: helm lint charts/booth-design --set oidc.issuerUrl=https://keycloak.example.com/realms/booth
+
+      - name: helm template (render check)
+        run: |
+          helm template booth-design charts/booth-design --namespace booth-design \
+            --set oidc.issuerUrl=https://keycloak.example.com/realms/booth > /dev/null
+
+      - name: oidc.issuerUrl is required (a shell that can't sign anyone in must not deploy)
+        run: |
+          if helm template booth-design charts/booth-design > /dev/null 2>&1; then
+            echo "expected helm template to fail without oidc.issuerUrl"; exit 1
+          fi
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        env:
+          # @projectbooth/module-store-ui is on GitHub Packages, which needs a token even
+          # to read; passed as a BuildKit secret so it never lands in a layer.
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: docker build --secret id=npm_token,env=NPM_TOKEN -t booth-design:ci .
+
+      - name: Smoke test the container
+        run: |
+          # 127.0.0.1 as the upstream: nginx resolves proxy_pass hosts at startup, so it
+          # needs one that exists. Nothing is proxied in this test.
+          docker run -d --name bd -p 8080:8080 \
+            -e OIDC_ISSUER_URL=https://idp.example.com/realms/booth \
+            -e OIDC_CLIENT_ID=booth-design \
+            -e CORE_GATEWAY_URL=http://127.0.0.1:1 booth-design:ci
+          for i in $(seq 1 20); do curl -fs localhost:8080/healthz && break || sleep 1; done
+          curl -fs localhost:8080/healthz
+          curl -fs localhost:8080/config.js | grep -q 'https://idp.example.com/realms/booth'
+          curl -fs localhost:8080/some/client/route | grep -q '<div id="root">'
+          test "$(docker exec bd id -u)" != "0"
+
+      - name: Container refuses to start without OIDC config
+        run: |
+          if docker run --rm -e CORE_GATEWAY_URL=http://127.0.0.1:1 booth-design:ci >/dev/null 2>&1; then
+            echo "expected startup to fail without OIDC_ISSUER_URL"; exit 1
+          fi

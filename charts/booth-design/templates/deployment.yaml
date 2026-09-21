@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "booth-design.fullname" . }}
+  labels:
+    {{- include "booth-design.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "booth-design.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "booth-design.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll the pod when config changes: /config.js is written once at container start.
+        checksum/config: {{ printf "%s|%s|%s|%s" .Values.oidc.issuerUrl .Values.oidc.clientId .Values.core.gatewayUrl .Values.proxy.clientMaxBodySize | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: booth-design
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CORE_GATEWAY_URL
+              value: {{ .Values.core.gatewayUrl | trimSuffix "/" | quote }}
+            - name: OIDC_ISSUER_URL
+              value: {{ required "oidc.issuerUrl is required: the shell can't sign anyone in without it (must match booth-core's issuer)" .Values.oidc.issuerUrl | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ required "oidc.clientId is required" .Values.oidc.clientId | quote }}
+            - name: CLIENT_MAX_BODY_SIZE
+              value: {{ .Values.proxy.clientMaxBodySize | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          volumeMounts:
+            # nginx's pid/temp files and the generated /config.js live here.
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}

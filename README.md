@@ -57,18 +57,18 @@ memory only for the tab's lifetime — never `localStorage` — and is attached 
 if the provider issues one, silently renews the access token before it expires. Logout
 clears local state and ends the session at the provider's end-session endpoint.
 
-Requires two build-time env vars (see `.env.example`), the same values `booth-core`
-itself is configured with:
+The issuer URL and client ID — the same values `booth-core` itself is configured with —
+reach the app two ways, runtime first (`src/lib/auth/config.ts`):
 
-```
-VITE_OIDC_ISSUER_URL=https://keycloak.example.com/realms/booth
-VITE_OIDC_CLIENT_ID=booth-design
-```
+- **Deployed (container):** the image writes `/config.js` at startup from `OIDC_ISSUER_URL`
+  / `OIDC_CLIENT_ID` (set by the chart's `oidc.*` values), so one image serves every
+  deployment. A build-time variable alone couldn't do this once the shell is containerized.
+- **Local dev:** `VITE_OIDC_ISSUER_URL` / `VITE_OIDC_CLIENT_ID` (see `.env.example`);
+  `public/config.js` ships empty so nothing overrides them.
 
 Chosen over an `/api/config`-style endpoint from core because these are public,
 non-secret values (ADR 0032 says so directly) and adding such an endpoint would be a
-`booth-core` contract change this repo doesn't own — revisit if ops tooling later wants
-runtime reconfiguration without a shell rebuild.
+`booth-core` contract change this repo doesn't own.
 
 A full page reload loses the in-memory token and re-triggers the redirect — this is the
 ADR's intended shape ("held in memory for the session's lifetime"), not a bug. In
@@ -94,6 +94,37 @@ npm run dev
 # proxies /api to booth-core; needs VITE_OIDC_ISSUER_URL/VITE_OIDC_CLIENT_ID set
 # (see "Authentication") to get past the login redirect at all
 ```
+
+## Container image and Helm chart
+
+booth-design has no backend of its own, but it needs to be *deployed*: `Dockerfile` builds
+the SPA and serves it with nginx (unprivileged, port 8080), and `charts/booth-design`
+installs it. It isn't a `BoothModule` — it's the shell chrome modules render into — so the
+chart has no manifest, just a Deployment and a Service.
+
+```
+docker build --secret id=npm_token,env=NPM_TOKEN -t booth-design .
+helm install booth-design charts/booth-design --namespace booth-design   --set oidc.issuerUrl=https://keycloak.example.com/realms/booth   --set core.gatewayUrl=http://booth-core.booth-system.svc:8080
+```
+
+- **The build needs a token.** `@projectbooth/module-store-ui` is on GitHub Packages, which
+  requires auth even to read. It's a BuildKit secret (`read:packages`), never in a layer;
+  without it `npm ci` fails with a 401 on that one package.
+- **nginx is a reverse proxy to booth-core**, not just a file server: `/api/*` and
+  `/modules/*` go to `core.gatewayUrl` with the `Authorization` and `X-Workspace` headers
+  untouched (websockets and large uploads supported), everything else falls back to
+  `index.html` for client-side routes. The browser sees one origin, so no CORS.
+- **`oidc.issuerUrl` is required** — the chart refuses to render without it, since a shell that
+  can't sign anyone in shouldn't deploy. It must be reachable from the *user's browser*, and
+  match the issuer booth-core is configured with.
+- **nginx resolves `core.gatewayUrl`'s hostname at startup**, so the pod crash-loops until
+  booth-core's Service exists, then comes up. Fine for install order (core first); noted so it
+  doesn't look like a bug.
+- **Verified:** the image was built and exercised with Docker (health, runtime config,
+  SPA fallback, caching and security headers, header/path passthrough to a stand-in core,
+  fails fast without OIDC config, non-root, no secret in the image). The chart is verified by
+  `helm lint`/`template` only — **not yet installed on a real cluster**; `booth-e2e` is the
+  first thing that will do that.
 
 ## Testing
 

@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+charts
+*.md
+Platform Shell (standalone).html

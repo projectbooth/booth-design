@@ -1,0 +1,38 @@
+# Default values for booth-design.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/projectbooth/booth-design
+  tag: "" # defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+core:
+  # booth-core's gateway, which this shell's nginx reverse-proxies /api and /modules to.
+  # In-cluster Service DNS by default (booth-core's chart installs into booth-system).
+  # No trailing slash.
+  gatewayUrl: "http://booth-core.booth-system.svc:8080"
+
+oidc:
+  # Required: the OIDC provider the browser signs in against (ADR 0032's client-side PKCE
+  # flow). Must be the same issuer booth-core is configured with, and reachable *from the
+  # user's browser*, not just from inside the cluster — tokens carry it as `iss`, and
+  # booth-core rejects any other.
+  issuerUrl: ""
+  # The public (no-secret) client registered for this shell. Same value booth-core is
+  # configured with as its clientId (it doubles as the expected `aud` when
+  # requireAudience is on).
+  clientId: booth-design
+
+proxy:
+  # Largest request body nginx will accept on the way to a module (e.g. a file upload
+  # through booth-storage). "0" disables the limit.
+  clientMaxBodySize: 512m
+
+service:
+  type: ClusterIP
+  port: 8080
+  # Only used when type is NodePort.
+  nodePort: null
+
+resources: {}
