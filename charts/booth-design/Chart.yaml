@@ -1,0 +1,12 @@
+apiVersion: v2
+name: booth-design
+description: >
+  Project Booth's UI shell: the persistent nav rail, workspace switcher, and content pane
+  that hosts every module's UI. Serves the built single-page app and reverse-proxies its
+  API calls (/api, /modules) to booth-core's gateway. Mandatory (ARCHITECTURE.md §2), but
+  not a BoothModule — it's the shell chrome modules render into, not something installed
+  through the module registry.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/projectbooth/booth-design

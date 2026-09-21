@@ -1,0 +1,5 @@
+# Files executed or parsed inside the Linux container must stay LF even when checked out
+# on Windows (a CRLF shebang line fails with "not found" at container start).
+*.sh text eol=lf
+docker/** text eol=lf
+Dockerfile text eol=lf
