@@ -178,6 +178,22 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    shipped `ModuleStoreAppProps` type-checks cleanly against this repo's
    `NativeModuleProps` — confirmed by reading its `.d.ts`, not assumed. Pinned by
    `src/__tests__/nativeModuleRegistrations.test.ts`.
+
+   **Every native module needs both halves** — the dependency *and* a
+   `registerNativeModule` call in `src/nativeModuleRegistrations.ts`. Registration is
+   what `NativeModulePane` looks up by manifest id, so a package that's in
+   `package.json` but unregistered silently shows "This module's screens aren't wired
+   into the shell yet." That's exactly how `storage` and `catalog` shipped broken: neither
+   was ever added, and only a real browser session noticed, since booth-e2e's smoke test
+   is API-only. Now registered: `module-store` (its own reserved slot), `storage`
+   (`@projectbooth/storage-ui`'s combined `StorageApp`, which reads the path itself to
+   pick its browse or admin view — one registration covers `navPath` and `adminNavPath`),
+   and `catalog` (`@projectbooth/catalog-ui`'s `CatalogApp`).
+   `src/__tests__/nativeModules.integration.test.tsx` mounts the real published
+   packages through the real `NativeModulePane` and router and pins that they render,
+   send `Authorization: Bearer` + `X-Workspace` on every request, and that an in-module
+   navigation reaches the shell's router. Each future native module (booth-api, …) needs
+   the same two steps.
 6. ~~`@projectbooth/module-store-ui`'s own API calls 401 against a real booth-core~~ —
    **fixed, and the contract it needed is now pinned.** This repo's own proposal (an
    `accessToken: string` value prop) turned out to be the wrong shape: a value captured

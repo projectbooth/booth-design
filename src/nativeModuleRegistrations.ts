@@ -1,30 +1,32 @@
 import { ModuleStoreApp } from "@projectbooth/module-store-ui";
 import "@projectbooth/module-store-ui/dist/style.css";
+import { StorageApp } from "@projectbooth/storage-ui";
+import "@projectbooth/storage-ui/dist/style.css";
+import { CatalogApp } from "@projectbooth/catalog-ui";
+import "@projectbooth/catalog-ui/dist/style.css";
 import { MODULE_STORE_SLOT_ID, registerNativeModule } from "@/lib/nativeModules";
 
 /**
  * Every native-mode module's npm package gets registered here, per ADR 0030
  * (../booth-architecture/decisions/0030-native-module-ui-delivered-as-npm-package.md).
- * Imported once, for its side effects, from src/main.tsx before the app renders.
+ * Imported once, for its side effects, from src/main.tsx before the app renders. The key
+ * is the module's manifest `id`, which is what NativeModulePane looks up — a module with
+ * no entry here shows the "aren't wired into the shell yet" placeholder, so adding a
+ * native module's package to package.json without registering it here does nothing.
  *
- * Module Store: wired in against @projectbooth/module-store-ui@0.1.0, whose
- * ModuleStoreAppProps matches this repo's NativeModuleProps (ADR 0031) exactly —
- * workspace/role/theme, confirmed by reading its shipped .d.ts, not assumed.
- *
- * KNOWN BROKEN against a real booth-core until fixed on the other side: this
- * package's own web/src/api/client.ts still sends `credentials: "include"` and
- * attaches no bearer token at all — the same wrong cookie-based auth assumption
- * ADR 0032 corrected here (src/lib/api/client.ts), just not yet on that side. Every
- * API call this component makes will 401 once mounted against a real, bearer-only
- * booth-core. Flagged to booth-module-store's agent directly, proposing the same
- * props-not-context extension already established (ADR 0031): an `accessToken`
- * field on ModuleStoreAppProps, sourced from this repo's
- * `getAccessToken()` (src/lib/auth/tokenStore.ts) — exactly the open question ADR
- * 0032's own consequences section anticipated ("the exact mechanism for how a
- * mounted native component accesses the token booth-design obtained isn't specified
- * by this ADR either... left as an implementation detail between booth-design and
- * native modules"). Registered anyway rather than left out, since the component
- * itself, structurally, is correct and this is the real integration point — worth
- * having wired up and visibly broken over not wired up at all.
+ * Each package's ModuleProps are a superset of NativeModuleProps (ADR 0031/0033:
+ * workspace, role, theme, getAccessToken); their remaining props are optional, so a bare
+ * registration type-checks and works.
  */
+
+// Module Store is shell-level (ADR 0027), not an entry in the module list, so it has its
+// own reserved slot id rather than a manifest id.
 registerNativeModule(MODULE_STORE_SLOT_ID, ModuleStoreApp);
+
+// The combined StorageApp, not StorageBrowseApp/StorageAdminApp separately: the shell
+// mounts one component per module id for both the module's navPath and adminNavPath, and
+// StorageApp reads the current path itself to choose between its browse and admin views.
+registerNativeModule("storage", StorageApp);
+
+// A single view (its own routes live beneath the module's navPath); no admin split.
+registerNativeModule("catalog", CatalogApp);
