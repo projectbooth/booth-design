@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@projectbooth/catalog-ui": "0.1.0",
-    "@projectbooth/module-store-ui": "0.3.0",
+    "@projectbooth/module-store-ui": "0.3.2",
     "@projectbooth/pipeline-ui": "0.2.0",
     "@projectbooth/storage-ui": "0.1.0",
     "@radix-ui/react-avatar": "^1.2.6",
