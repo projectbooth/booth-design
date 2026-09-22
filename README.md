@@ -183,12 +183,17 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    `registerNativeModule` call in `src/nativeModuleRegistrations.ts`. Registration is
    what `NativeModulePane` looks up by manifest id, so a package that's in
    `package.json` but unregistered silently shows "This module's screens aren't wired
-   into the shell yet." That's exactly how `storage` and `catalog` shipped broken: neither
-   was ever added, and only a real browser session noticed, since booth-e2e's smoke test
-   is API-only. Now registered: `module-store` (its own reserved slot), `storage`
-   (`@projectbooth/storage-ui`'s combined `StorageApp`, which reads the path itself to
-   pick its browse or admin view — one registration covers `navPath` and `adminNavPath`),
-   and `catalog` (`@projectbooth/catalog-ui`'s `CatalogApp`).
+   into the shell yet." That's exactly how `storage`, `catalog`, and then `pipeline`
+   each shipped broken in turn: none was ever added, and only a real browser session
+   noticed each time, since booth-e2e's smoke test is API-only. Now registered:
+   `module-store` (its own reserved slot), `storage` (`@projectbooth/storage-ui`'s
+   combined `StorageApp`, which reads the path itself to pick its browse or admin view —
+   one registration covers `navPath` and `adminNavPath`), `catalog`
+   (`@projectbooth/catalog-ui`'s `CatalogApp`), and `pipeline`
+   (`@projectbooth/pipeline-ui`'s `PipelineApp` — ships `@xyflow/react` bundled in for its
+   DAG view rather than as a peer, since the shell doesn't provide one; this pushed the
+   main JS chunk over Vite's 500kB warning threshold, worth revisiting via code-splitting
+   if more native modules add their own heavy dependencies).
    `src/__tests__/nativeModules.integration.test.tsx` mounts the real published
    packages through the real `NativeModulePane` and router and pins that they render,
    send `Authorization: Bearer` + `X-Workspace` on every request, and that an in-module
