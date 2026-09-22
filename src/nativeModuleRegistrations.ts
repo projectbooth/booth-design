@@ -4,6 +4,8 @@ import { StorageApp } from "@projectbooth/storage-ui";
 import "@projectbooth/storage-ui/dist/style.css";
 import { CatalogApp } from "@projectbooth/catalog-ui";
 import "@projectbooth/catalog-ui/dist/style.css";
+import { PipelineApp } from "@projectbooth/pipeline-ui";
+import "@projectbooth/pipeline-ui/dist/style.css";
 import { MODULE_STORE_SLOT_ID, registerNativeModule } from "@/lib/nativeModules";
 
 /**
@@ -30,3 +32,7 @@ registerNativeModule("storage", StorageApp);
 
 // A single view (its own routes live beneath the module's navPath); no admin split.
 registerNativeModule("catalog", CatalogApp);
+
+// A single view; ships its own DAG-rendering dependency (@xyflow/react) bundled in,
+// rather than as a peer, since the shell doesn't provide one.
+registerNativeModule("pipeline", PipelineApp);

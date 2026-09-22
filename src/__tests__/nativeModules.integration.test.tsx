@@ -42,9 +42,11 @@ beforeEach(() => {
       // Response shapes match what each package's own API client expects.
       const body = /\/tags$/.test(String(url))
         ? { tags: [] }
-        : /\/(datasets|code|dashboards)(\?|$)/.test(String(url))
+        : /\/(datasets|code|dashboards|pipelines|jobs)(\?|$)/.test(String(url))
           ? { items: [], total: 0, limit: 25, offset: 0 }
-          : [];
+          : /\/runners$/.test(String(url))
+            ? { items: [] }
+            : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
@@ -120,5 +122,15 @@ describe("catalog (real @projectbooth/catalog-ui)", () => {
     // and React Router (which only listens for popstate) must have followed.
     expect(window.location.pathname).toBe("/catalog/code");
     expect(screen.getByTestId("router-path").textContent).toBe("/catalog/code");
+  });
+});
+
+describe("pipeline (real @projectbooth/pipeline-ui)", () => {
+  it("renders instead of the placeholder, and authenticates its requests", async () => {
+    window.history.pushState({}, "", "/pipeline");
+    mount("pipeline");
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
   });
 });
