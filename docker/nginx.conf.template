@@ -13,7 +13,10 @@
 #                      (e.g. JupyterHub's /hub/..., /user/...) never carry the /iframe/
 #                      {id} prefix, so they're caught below by the booth_iframe_session
 #                      cookie instead of by path — core's own IframeFallbackHandler
-#                      (ADR 0069) is keyed the same way, for the same reason
+#                      (ADR 0069) is keyed the same way, for the same reason. A
+#                      top-level navigation (Sec-Fetch-Dest: document) always goes to
+#                      the shell regardless of the cookie — see @iframe_fallback below
+#                      for why (ADR 0069 "Implementation notes", Bug 1)
 # All forward the client's Authorization and X-Workspace headers untouched — the
 # gateway does the token verification (ADR 0032), this proxy never inspects them.
 
@@ -111,6 +114,21 @@ server {
     }
 
     location @iframe_fallback {
+        # A top-level navigation must always reach the shell, even with a live iframe
+        # session cookie — otherwise the cookie alone can't tell "the embedded module's
+        # own follow-up call" apart from "the person left the module and asked for
+        # something else." Confirmed live by booth-notebooks (ADR 0069 "Implementation
+        # notes", Bug 1): with the cookie live, /, /storage, /notebooks, and
+        # /catalog/datasets all 302'd straight into JupyterHub instead of the shell.
+        # Browsers label this distinction — Sec-Fetch-Dest is "document" for a
+        # top-level navigation, "iframe" for a nested one, "empty" for a fetch/XHR — so
+        # a document-destination request goes to the shell regardless of the cookie,
+        # checked before the cookie check below. (booth-core's own direct-access
+        # fallback, IframeFallbackHandler, carries the matching fix.)
+        if ($http_sec_fetch_dest = document) {
+            add_header Cache-Control "no-cache" always;
+            rewrite ^ /index.html last;
+        }
         # No cookie: an ordinary client-side route. Never cache index.html so a new
         # deploy is picked up on the next load — matches location /'s own Cache-Control
         # above (add_header isn't inherited across this internal redirect either).
@@ -118,7 +136,8 @@ server {
             add_header Cache-Control "no-cache" always;
             rewrite ^ /index.html last;
         }
-        # Cookie present: proxy to core, same treatment as /iframe/ and /modules/ above.
+        # Non-navigation request (iframe/empty/other) with the cookie: proxy to core,
+        # same treatment as /iframe/ and /modules/ above.
         proxy_pass ${CORE_GATEWAY_URL};
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;

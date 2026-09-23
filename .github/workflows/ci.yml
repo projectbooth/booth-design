@@ -104,9 +104,15 @@ jobs:
           # the connection — expected, CORE_GATEWAY_URL isn't real here) from "fell
           # through to the SPA" (200, index.html) without needing a real upstream.
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/iframe/notebooks/)" = "502"
-          test "$(curl -s -o /dev/null -w '%{http_code}' -b booth_iframe_session=x localhost:8080/hub/api/spawn)" = "502"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -b booth_iframe_session=x -H 'Sec-Fetch-Dest: iframe' localhost:8080/hub/api/spawn)" = "502"
           # No cookie: the same follow-up-shaped path must still fall through to the SPA.
           curl -fs localhost:8080/hub/api/spawn | grep -q '<div id="root">'
+          # ADR 0069 Implementation notes, Bug 1 (live regression, booth-notebooks): with
+          # the cookie live, a top-level navigation must reach the shell, not core —
+          # Sec-Fetch-Dest: document overrides the cookie regardless of path.
+          for p in / /storage /notebooks /catalog/datasets; do
+            curl -fs -b booth_iframe_session=x -H 'Sec-Fetch-Dest: document' "localhost:8080$p" | grep -q '<div id="root">'
+          done
           test "$(docker exec bd id -u)" != "0"
 
       - name: Container refuses to start without OIDC config
