@@ -114,11 +114,19 @@ helm install booth-design charts/booth-design --namespace booth-design   --set o
   `/modules/*`, and `/iframe/*` go to `core.gatewayUrl` with the `Authorization` and
   `X-Workspace` headers untouched (websockets and large uploads supported). A request
   with no path match falls back to `index.html` for client-side routes — **unless** it
-  carries the `booth_iframe_session` cookie, in which case it's also proxied to core
-  (ADR 0069 item B): an iframe-proxied third-party UI's own root-relative follow-up
-  calls (JupyterHub's `/hub/...`, `/user/...`) never carry the `/iframe/{id}` prefix, so
-  path-matching alone can't route them — core's own `IframeFallbackHandler` is keyed the
-  same way, for the same reason. The browser sees one origin throughout, so no CORS.
+  carries the `booth_iframe_session` cookie *and* isn't a top-level navigation, in which
+  case it's also proxied to core (ADR 0069 item B): an iframe-proxied third-party UI's
+  own root-relative follow-up calls (JupyterHub's `/hub/...`, `/user/...`) never carry
+  the `/iframe/{id}` prefix, so path-matching alone can't route them — core's own
+  `IframeFallbackHandler` is keyed the same way, for the same reason. **The top-level-
+  navigation check is load-bearing, not a nicety**: cookie presence alone can't tell "the
+  embedded module's own follow-up call" apart from "the person left the module and asked
+  for something else" — confirmed live by booth-notebooks (ADR 0069 "Implementation
+  notes", Bug 1): with the cookie live, `/`, `/storage`, `/notebooks`, and
+  `/catalog/datasets` all 302'd straight into JupyterHub instead of the shell. Fixed by
+  branching on `Sec-Fetch-Dest` (`document` for a top-level navigation, `iframe`/`empty`
+  for a nested/fetch request), which always wins over the cookie. The browser sees one
+  origin throughout, so no CORS.
 - **`oidc.issuerUrl` is required** — the chart refuses to render without it, since a shell that
   can't sign anyone in shouldn't deploy. It must be reachable from the *user's browser*, and
   match the issuer booth-core is configured with.
