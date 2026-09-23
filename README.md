@@ -110,16 +110,29 @@ helm install booth-design charts/booth-design --namespace booth-design   --set o
 - **The build needs a token.** `@projectbooth/module-store-ui` is on GitHub Packages, which
   requires auth even to read. It's a BuildKit secret (`read:packages`), never in a layer;
   without it `npm ci` fails with a 401 on that one package.
-- **nginx is a reverse proxy to booth-core**, not just a file server: `/api/*` and
-  `/modules/*` go to `core.gatewayUrl` with the `Authorization` and `X-Workspace` headers
-  untouched (websockets and large uploads supported), everything else falls back to
-  `index.html` for client-side routes. The browser sees one origin, so no CORS.
+- **nginx is a reverse proxy to booth-core**, not just a file server: `/api/*`,
+  `/modules/*`, and `/iframe/*` go to `core.gatewayUrl` with the `Authorization` and
+  `X-Workspace` headers untouched (websockets and large uploads supported). A request
+  with no path match falls back to `index.html` for client-side routes — **unless** it
+  carries the `booth_iframe_session` cookie, in which case it's also proxied to core
+  (ADR 0069 item B): an iframe-proxied third-party UI's own root-relative follow-up
+  calls (JupyterHub's `/hub/...`, `/user/...`) never carry the `/iframe/{id}` prefix, so
+  path-matching alone can't route them — core's own `IframeFallbackHandler` is keyed the
+  same way, for the same reason. The browser sees one origin throughout, so no CORS.
 - **`oidc.issuerUrl` is required** — the chart refuses to render without it, since a shell that
   can't sign anyone in shouldn't deploy. It must be reachable from the *user's browser*, and
   match the issuer booth-core is configured with.
 - **nginx resolves `core.gatewayUrl`'s hostname at startup**, so the pod crash-loops until
   booth-core's Service exists, then comes up. Fine for install order (core first); noted so it
   doesn't look like a bug.
+- **`IframeProxyPane` renews its session cookie** (ADR 0069 item C) — core's iframe
+  session cookie is fixed at a 15-minute TTL server-side with no renewal endpoint of its
+  own, so the pane re-requests a fresh iframe URL and quietly `fetch`es it (not the
+  mounted iframe's `src` — that would reload whatever's live inside it) every 10 minutes
+  while it stays mounted, comfortably ahead of the cookie lapsing. Without this, any
+  iframe-proxied session (JupyterHub notebooks today; Superset/Metabase/`booth-spark`
+  once built) longer than 15 minutes started 401ing on every request — saves, kernel
+  restarts, new websocket connections — until the user navigated away and back.
 - **Verified:** the image was built and exercised with Docker (health, runtime config,
   SPA fallback, caching and security headers, header/path passthrough to a stand-in core,
   fails fast without OIDC config, non-root, no secret in the image). The chart is verified by

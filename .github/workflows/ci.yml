@@ -100,6 +100,13 @@ jobs:
           curl -fs localhost:8080/healthz
           curl -fs localhost:8080/config.js | grep -q 'https://idp.example.com/realms/booth'
           curl -fs localhost:8080/some/client/route | grep -q '<div id="root">'
+          # ADR 0069 item B: distinguishes "nginx tried to proxy" (502, upstream refuses
+          # the connection — expected, CORE_GATEWAY_URL isn't real here) from "fell
+          # through to the SPA" (200, index.html) without needing a real upstream.
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/iframe/notebooks/)" = "502"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -b booth_iframe_session=x localhost:8080/hub/api/spawn)" = "502"
+          # No cookie: the same follow-up-shaped path must still fall through to the SPA.
+          curl -fs localhost:8080/hub/api/spawn | grep -q '<div id="root">'
           test "$(docker exec bd id -u)" != "0"
 
       - name: Container refuses to start without OIDC config
