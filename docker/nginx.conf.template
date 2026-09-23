@@ -1,12 +1,20 @@
 # Rendered by the nginx image's envsubst step at startup (only the variables defined in
 # the container's environment are substituted, so nginx's own $variables are untouched).
 #
-# Serves the built SPA and reverse-proxies the two path families the shell calls to
+# Serves the built SPA and reverse-proxies the path families the shell calls to
 # booth-core's gateway, so the browser only ever talks to one origin (no CORS):
 #   /api/...           booth-core's own API (identity, module list, iframe-url issuance)
 #   /modules/{id}/...  the gateway route for every native and iframe-proxy module's own
 #                      API calls (contracts/ui-integration.md)
-# Both forward the client's Authorization and X-Workspace headers untouched — the
+#   /iframe/{id}/...   an iframe-proxy module's entry point (ADR 0069) — core mints this
+#                      URL (contracts/ui-integration.md), sets a session cookie on first
+#                      hit, and re-verifies it on every request after
+#   (cookie fallback)  a proxied third-party UI's own root-relative follow-up calls
+#                      (e.g. JupyterHub's /hub/..., /user/...) never carry the /iframe/
+#                      {id} prefix, so they're caught below by the booth_iframe_session
+#                      cookie instead of by path — core's own IframeFallbackHandler
+#                      (ADR 0069) is keyed the same way, for the same reason
+# All forward the client's Authorization and X-Workspace headers untouched — the
 # gateway does the token verification (ADR 0032), this proxy never inspects them.
 
 map $http_upgrade $connection_upgrade {
@@ -67,6 +75,21 @@ server {
         proxy_request_buffering off;
     }
 
+    # ADR 0069 item B. Same websocket/timeout treatment as /modules/ above — an
+    # iframe-proxied third-party UI (JupyterHub today; Superset/Metabase/booth-spark once
+    # built) needs it identically, and for the identical reason.
+    location /iframe/ {
+        proxy_pass ${CORE_GATEWAY_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_request_buffering off;
+    }
+
     # Vite emits content-hashed filenames under /assets, safe to cache forever.
     location /assets/ {
         try_files $uri =404;
@@ -75,12 +98,35 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     }
 
-    # Everything else is a client-side route (react-router): fall back to the SPA shell,
-    # and never cache index.html so a new deploy is picked up on the next load.
+    # Everything else is either a client-side route (react-router) or, if the request
+    # carries an iframe session cookie, one of a proxied third-party UI's own
+    # root-relative follow-up calls (ADR 0069 item B — see the file header comment).
+    # try_files hits @iframe_fallback for anything that isn't a real static file; that
+    # location decides between the two by cookie presence.
     location / {
-        try_files $uri /index.html;
+        try_files $uri @iframe_fallback;
         add_header Cache-Control "no-cache" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    location @iframe_fallback {
+        # No cookie: an ordinary client-side route. Never cache index.html so a new
+        # deploy is picked up on the next load — matches location /'s own Cache-Control
+        # above (add_header isn't inherited across this internal redirect either).
+        if ($cookie_booth_iframe_session = "") {
+            add_header Cache-Control "no-cache" always;
+            rewrite ^ /index.html last;
+        }
+        # Cookie present: proxy to core, same treatment as /iframe/ and /modules/ above.
+        proxy_pass ${CORE_GATEWAY_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 3600s;
+        proxy_request_buffering off;
     }
 }
