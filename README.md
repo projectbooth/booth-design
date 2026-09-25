@@ -220,6 +220,18 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    send `Authorization: Bearer` + `X-Workspace` on every request, and that an in-module
    navigation reaches the shell's router. Each future native module (booth-api, …) needs
    the same two steps.
+
+   **The shell also owns outer padding around every native module, uniformly**
+   ([ADR 0072](../booth-architecture/decisions/0072-shell-owns-native-module-outer-padding.md),
+   found live: `booth-pipeline`'s and `booth-storage`'s content pressed flush against the
+   shell's edge, `booth-module-store`'s only didn't because it happened to add its own
+   `p-6`). `NativeModulePane` wraps a mounted component in `p-6` (`--space-6`,
+   `tokens.css`) — not `ShellLayout`'s `<main>`, which also wraps Home, Settings, and
+   `IframeProxyPane`, none of which should get this treatment. A native module's own
+   root should assume this padding already exists and never add its own. Deliberately
+   *not* applied to `booth-module-store` at the same time as this fix — that repo owns
+   removing its now-doubled `p-6` on its own schedule, coordinated separately, once this
+   ships.
 6. ~~`@projectbooth/module-store-ui`'s own API calls 401 against a real booth-core~~ —
    **fixed, and the contract it needed is now pinned.** This repo's own proposal (an
    `accessToken: string` value prop) turned out to be the wrong shape: a value captured
