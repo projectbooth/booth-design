@@ -52,4 +52,11 @@ describe("NativeModulePane", () => {
     expect(screen.getByText("Unwired")).toBeInTheDocument();
     expect(screen.getByText(/aren't wired into the shell yet/)).toBeInTheDocument();
   });
+
+  it("wraps a registered component in the shell's own outer padding (ADR 0072)", () => {
+    registerNativeModule("padded-mod", () => <div data-testid="mounted">content</div>);
+    render(<NativeModulePane module={module({ id: "padded-mod", displayName: "Padded" })} />);
+    const wrapper = screen.getByTestId("mounted").parentElement;
+    expect(wrapper).toHaveClass("p-6");
+  });
 });
