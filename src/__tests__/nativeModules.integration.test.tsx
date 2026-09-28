@@ -46,7 +46,13 @@ beforeEach(() => {
           ? { items: [], total: 0, limit: 25, offset: 0 }
           : /\/runners$/.test(String(url))
             ? { items: [] }
-            : [];
+            : /\/modules\/logging\/api\/config/.test(String(url))
+              ? { retentionSeconds: 604800, maxQueryRangeSeconds: 86400, maxLimit: 1000, levels: [], scope: "workspace" }
+              : /\/modules\/logging\/api\/modules(\?|$)/.test(String(url))
+                ? { modules: [] }
+                : /\/modules\/logging\/api\/logs(\?|$)/.test(String(url))
+                  ? { entries: [], query: "" }
+                  : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
@@ -129,6 +135,16 @@ describe("pipeline (real @projectbooth/pipeline-ui)", () => {
   it("renders instead of the placeholder, and authenticates its requests", async () => {
     window.history.pushState({}, "", "/pipeline");
     mount("pipeline");
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
+  });
+});
+
+describe("logging (real @projectbooth/logging-ui)", () => {
+  it("renders instead of the placeholder, and authenticates its requests", async () => {
+    window.history.pushState({}, "", "/logging");
+    mount("logging");
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
     expectAuthenticated(calls);
