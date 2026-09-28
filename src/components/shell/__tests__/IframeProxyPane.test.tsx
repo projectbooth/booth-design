@@ -1,6 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IframeProxyPane } from "../IframeProxyPane";
+import { useTheme } from "@/lib/theme";
 import type { Membership, ModuleSummary } from "@/lib/api/types";
 
 const activeWorkspace: Membership = { workspace: "acme-analytics", role: "editor" };
@@ -101,5 +102,124 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
     // the new module, not two.
     await act(async () => vi.advanceTimersByTimeAsync(RENEWAL_INTERVAL_MS));
     expect(getIframeUrl).toHaveBeenCalledTimes(3);
+  });
+});
+
+// Uses the real src/lib/theme.ts store (not mocked) — deliberately, since the bug this
+// suite guards against (theme.ts used to be per-component useState, so a toggle in one
+// component silently never reached another) only shows up against the real shared
+// store, not a mock that can't reproduce a cross-component desync in the first place.
+function ThemeToggler() {
+  const { toggleTheme } = useTheme();
+  return <button onClick={toggleTheme}>toggle theme</button>;
+}
+
+describe("IframeProxyPane theme sync (ADR 0075)", () => {
+  beforeEach(() => {
+    getIframeUrl.mockResolvedValue("https://shell.example/iframe/notebooks/?t=tok-1");
+  });
+
+  it("replies with the current theme when the iframe sends booth:iframe-ready", async () => {
+    render(<IframeProxyPane module={mod} />);
+    await flush();
+
+    const iframe = screen.getByTitle("Notebooks") as HTMLIFrameElement;
+    const contentWindow = iframe.contentWindow!;
+    const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
+    const { result } = renderHook(() => useTheme());
+    const currentTheme = result.current.theme;
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "booth:iframe-ready" },
+        origin: window.location.origin,
+        source: contentWindow,
+      }),
+    );
+
+    expect(postMessageSpy).toHaveBeenCalledWith({ type: "booth:theme", theme: currentTheme }, window.location.origin);
+  });
+
+  it("ignores a ready message from the wrong origin", async () => {
+    render(<IframeProxyPane module={mod} />);
+    await flush();
+    const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
+    const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "booth:iframe-ready" },
+        origin: "https://not-this-shell.example",
+        source: contentWindow,
+      }),
+    );
+
+    expect(postMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it("ignores a message claiming to be from a source that isn't the mounted iframe", async () => {
+    render(<IframeProxyPane module={mod} />);
+    await flush();
+    const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
+    const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "booth:iframe-ready" },
+        origin: window.location.origin,
+        source: window, // the shell's own window, not the iframe's
+      }),
+    );
+
+    expect(postMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it("ignores a same-origin, same-source message of an unrecognized type", async () => {
+    render(<IframeProxyPane module={mod} />);
+    await flush();
+    const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
+    const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "something-else" },
+        origin: window.location.origin,
+        source: contentWindow,
+      }),
+    );
+
+    expect(postMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it("posts again to the mounted iframe when the shell's theme changes elsewhere, with no src reload", async () => {
+    render(
+      <>
+        <ThemeToggler />
+        <IframeProxyPane module={mod} />
+      </>,
+    );
+    await flush();
+
+    const iframe = screen.getByTitle("Notebooks") as HTMLIFrameElement;
+    const srcBefore = iframe.getAttribute("src");
+    const postMessageSpy = vi.spyOn(iframe.contentWindow!, "postMessage");
+
+    act(() => screen.getByText("toggle theme").click());
+
+    expect(postMessageSpy).toHaveBeenCalledTimes(1);
+    const [payload] = postMessageSpy.mock.calls[0];
+    expect(payload).toMatchObject({ type: "booth:theme" });
+    expect(iframe.getAttribute("src")).toBe(srcBefore); // never reloaded
+  });
+
+  it("is a complete no-op for a module that never sends booth:iframe-ready", async () => {
+    render(<IframeProxyPane module={mod} />);
+    await flush();
+    const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
+    const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
+
+    // No ready handshake ever arrives — nothing here should call postMessage on its own.
+    await act(async () => vi.advanceTimersByTimeAsync(RENEWAL_INTERVAL_MS));
+    expect(postMessageSpy).not.toHaveBeenCalled();
   });
 });
