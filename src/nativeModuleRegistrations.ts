@@ -6,6 +6,8 @@ import { CatalogApp } from "@projectbooth/catalog-ui";
 import "@projectbooth/catalog-ui/dist/style.css";
 import { PipelineApp } from "@projectbooth/pipeline-ui";
 import "@projectbooth/pipeline-ui/dist/style.css";
+import { LoggingApp } from "@projectbooth/logging-ui";
+import "@projectbooth/logging-ui/dist/style.css";
 import { MODULE_STORE_SLOT_ID, registerNativeModule } from "@/lib/nativeModules";
 
 /**
@@ -36,3 +38,8 @@ registerNativeModule("catalog", CatalogApp);
 // A single view; ships its own DAG-rendering dependency (@xyflow/react) bundled in,
 // rather than as a peer, since the shell doesn't provide one.
 registerNativeModule("pipeline", PipelineApp);
+
+// A single view: browse/filter/search every module's stdout/stderr logs (ADR 0015,
+// ADR 0022's node-level collector). booth-logging's own power-user view (Grafana,
+// ADR 0076) is iframe-proxy, not this — this is only the native browse/filter viewer.
+registerNativeModule("logging", LoggingApp);
