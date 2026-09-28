@@ -141,6 +141,26 @@ helm install booth-design charts/booth-design --namespace booth-design   --set o
   iframe-proxied session (JupyterHub notebooks today; Superset/Metabase/`booth-spark`
   once built) longer than 15 minutes started 401ing on every request — saves, kernel
   restarts, new websocket connections — until the user navigated away and back.
+- **`IframeProxyPane` live-syncs the shell's theme into an iframe-proxy module**
+  (ADR 0075) — an optional, opt-in `postMessage` channel, generic across any
+  `iframe-proxy` module, not `booth-notebooks`-specific. A module that wants this posts
+  `{type: "booth:iframe-ready"}` to its parent once its own code can act on a theme;
+  the pane replies with `{type: "booth:theme", theme: "dark" | "light"}` and posts the
+  same message again every time the shell's theme changes while that pane stays
+  mounted — one effect keyed on `theme`, no polling. Both sides validate
+  `event.origin`/`targetOrigin` against the real origin (never `"*"`); this side also
+  checks `event.source` against the mounted iframe's own `contentWindow` before acting.
+  Same-origin by construction (ADR 0069 item B: core's iframe URL is always relative),
+  and never touches the iframe's `src` — same constraint as the session renewal above.
+  A module that never sends `booth:iframe-ready` gets no messages at all.
+  **Found and fixed a real bug while building this**: `src/lib/theme.ts`'s `useTheme()`
+  was plain per-component `useState` — confirmed directly with a spike test (toggling
+  in one component left a sibling component's own `useTheme()` call unchanged) before
+  rewriting it as a shared module-level store via `useSyncExternalStore`. This had been
+  silently masked until now: CSS theming reads the DOM's `data-theme` attribute
+  directly, not React state, so every *visual* effect of a toggle already looked
+  correct — the desync only mattered once something (this ADR) needed the live JS
+  value itself in a component that isn't where the toggle lives.
 - **Verified:** the image was built and exercised with Docker (health, runtime config,
   SPA fallback, caching and security headers, header/path passthrough to a stand-in core,
   fails fast without OIDC config, non-root, no secret in the image). The chart is verified by
