@@ -8,6 +8,8 @@ import { PipelineApp } from "@projectbooth/pipeline-ui";
 import "@projectbooth/pipeline-ui/dist/style.css";
 import { LoggingApp } from "@projectbooth/logging-ui";
 import "@projectbooth/logging-ui/dist/style.css";
+import { DatabaseApp } from "@projectbooth/database-ui";
+import "@projectbooth/database-ui/dist/style.css";
 import { MODULE_STORE_SLOT_ID, registerNativeModule } from "@/lib/nativeModules";
 
 /**
@@ -43,3 +45,8 @@ registerNativeModule("pipeline", PipelineApp);
 // ADR 0022's node-level collector). booth-logging's own power-user view (Grafana,
 // ADR 0076) is iframe-proxy, not this — this is only the native browse/filter viewer.
 registerNativeModule("logging", LoggingApp);
+
+// A single, read-only status view (ADR 0093): the workspace's own database, plus every
+// workspace's for an operator. No create/change/drop path exists here at all
+// (ADR 0089) — status only. No adminNavPath split, unlike storage.
+registerNativeModule("database", DatabaseApp);

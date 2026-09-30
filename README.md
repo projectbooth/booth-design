@@ -237,19 +237,25 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    if more native modules add their own heavy dependencies), and `logging`
    (`@projectbooth/logging-ui`'s `LoggingApp` — the native browse/filter/search viewer
    over every module's stdout/stderr; ADR 0076's Grafana power-user view is a separate,
-   `iframe-proxy`-mode piece of `booth-logging`, not this).
+   `iframe-proxy`-mode piece of `booth-logging`, not this), and `database`
+   (`@projectbooth/database-ui`'s `DatabaseApp` — a single, read-only status view, ADR
+   0093: no create/change/drop path exists here at all, ADR 0089. No `adminNavPath`
+   split, unlike `storage`).
    `src/__tests__/nativeModules.integration.test.tsx` mounts the real published
    packages through the real `NativeModulePane` and router and pins that they render,
    send `Authorization: Bearer` + `X-Workspace` on every request, and that an in-module
    navigation reaches the shell's router. Each future native module (booth-api, …) needs
-   the same two steps. **Caught a real wire-shape trap building this one**:
-   `logging-ui`'s public `fetchModules(): Promise<string[]>` unwraps a `{modules:
-   string[]}` response body internally — a test stub returning the unwrapped array
-   directly type-checks fine (nothing in this repo touches that internal shape) but
-   crashes the mounted component at runtime, since it's reading `.modules` off a plain
-   array. Caught by an uncaught-exception failure in the test run itself, not by a
-   passing-for-the-wrong-reason assertion — worth remembering that a package's own
-   `.d.ts` only promises its *public* return type, never its wire shape.
+   the same two steps. **Caught a real wire-shape trap building `logging`, applied the
+   lesson to `database`**: `logging-ui`'s public `fetchModules(): Promise<string[]>`
+   unwraps a `{modules: string[]}` response body internally — a test stub returning the
+   unwrapped array directly type-checks fine (nothing in this repo touches that
+   internal shape) but crashes the mounted component at runtime, since it's reading
+   `.modules` off a plain array. Caught by an uncaught-exception failure in the test
+   run itself, not by a passing-for-the-wrong-reason assertion — worth remembering
+   that a package's own `.d.ts` only promises its *public* return type, never its wire
+   shape. `database-ui`'s `listDatabases()` does the identical thing (`{items: [...]}`
+   → a plain array) — checked its built bundle directly before writing that stub, not
+   assumed safe just because the pattern was already known.
 
    **The shell also owns outer padding around every native module, uniformly**
    ([ADR 0072](../booth-architecture/decisions/0072-shell-owns-native-module-outer-padding.md),
