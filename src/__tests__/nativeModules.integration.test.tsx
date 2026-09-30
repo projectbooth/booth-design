@@ -52,7 +52,11 @@ beforeEach(() => {
                 ? { modules: [] }
                 : /\/modules\/logging\/api\/logs(\?|$)/.test(String(url))
                   ? { entries: [], query: "" }
-                  : [];
+                  : /\/modules\/database\/api\/status$/.test(String(url))
+                    ? { workspace: "acme-analytics", provisioned: false, database: null, operator: false }
+                    : /\/modules\/database\/api\/databases(\?|$)/.test(String(url))
+                      ? { items: [] }
+                      : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
@@ -145,6 +149,16 @@ describe("logging (real @projectbooth/logging-ui)", () => {
   it("renders instead of the placeholder, and authenticates its requests", async () => {
     window.history.pushState({}, "", "/logging");
     mount("logging");
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
+  });
+});
+
+describe("database (real @projectbooth/database-ui)", () => {
+  it("renders instead of the placeholder, and authenticates its requests", async () => {
+    window.history.pushState({}, "", "/database");
+    mount("database");
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
     expectAuthenticated(calls);
