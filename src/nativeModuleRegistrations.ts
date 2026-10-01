@@ -10,6 +10,8 @@ import { LoggingApp } from "@projectbooth/logging-ui";
 import "@projectbooth/logging-ui/dist/style.css";
 import { DatabaseApp } from "@projectbooth/database-ui";
 import "@projectbooth/database-ui/dist/style.css";
+import { LakehouseApp } from "@projectbooth/lakehouse-ui";
+import "@projectbooth/lakehouse-ui/dist/style.css";
 import { MODULE_STORE_SLOT_ID, registerNativeModule } from "@/lib/nativeModules";
 
 /**
@@ -50,3 +52,8 @@ registerNativeModule("logging", LoggingApp);
 // workspace's for an operator. No create/change/drop path exists here at all
 // (ADR 0089) — status only. No adminNavPath split, unlike storage.
 registerNativeModule("database", DatabaseApp);
+
+// A single, read-only list of warehouses and their cheap status (ADR 0093). No
+// create/delete action here — creating stays in the client library, deleting is
+// undecided. No adminNavPath split, same shape as database.
+registerNativeModule("lakehouse", LakehouseApp);

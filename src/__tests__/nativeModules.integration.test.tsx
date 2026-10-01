@@ -56,7 +56,9 @@ beforeEach(() => {
                     ? { workspace: "acme-analytics", provisioned: false, database: null, operator: false }
                     : /\/modules\/database\/api\/databases(\?|$)/.test(String(url))
                       ? { items: [] }
-                      : [];
+                      : /\/modules\/lakehouse\/api\/admin\/warehouses$/.test(String(url))
+                        ? { scope: "workspace", items: [] }
+                        : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
@@ -159,6 +161,16 @@ describe("database (real @projectbooth/database-ui)", () => {
   it("renders instead of the placeholder, and authenticates its requests", async () => {
     window.history.pushState({}, "", "/database");
     mount("database");
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
+  });
+});
+
+describe("lakehouse (real @projectbooth/lakehouse-ui)", () => {
+  it("renders instead of the placeholder, and authenticates its requests", async () => {
+    window.history.pushState({}, "", "/lakehouse");
+    mount("lakehouse");
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
     expectAuthenticated(calls);

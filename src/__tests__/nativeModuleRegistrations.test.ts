@@ -5,6 +5,7 @@ import { CatalogApp } from "@projectbooth/catalog-ui";
 import { PipelineApp } from "@projectbooth/pipeline-ui";
 import { LoggingApp } from "@projectbooth/logging-ui";
 import { DatabaseApp } from "@projectbooth/database-ui";
+import { LakehouseApp } from "@projectbooth/lakehouse-ui";
 import { getNativeModule, MODULE_STORE_SLOT_ID } from "@/lib/nativeModules";
 import "../nativeModuleRegistrations";
 
@@ -31,5 +32,9 @@ describe("nativeModuleRegistrations", () => {
 
   it("registers DatabaseApp under the manifest id `database`", () => {
     expect(getNativeModule("database")).toBe(DatabaseApp);
+  });
+
+  it("registers LakehouseApp under the manifest id `lakehouse`", () => {
+    expect(getNativeModule("lakehouse")).toBe(LakehouseApp);
   });
 });
