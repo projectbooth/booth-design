@@ -1,8 +1,11 @@
 @import "./tokens.css";
 /* Space Mono for numeric/code-shaped data — see tokens.css's --font-mono comment.
-   Loaded from Google Fonts for now; revisit once self-hosting/offline-install needs
-   are decided (self-hosted deployments per ARCHITECTURE.md §1 may want this vendored). */
-@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
+   Self-hosted via @fontsource/space-mono (weights 400/700, matching what was
+   previously requested from Google Fonts) so an air-gapped install renders the same
+   type with no runtime request to fonts.googleapis.com/fonts.gstatic.com — Vite bundles
+   the package's woff2/woff files as build assets. */
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 
 @tailwind base;
 @tailwind components;
