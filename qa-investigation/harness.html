@@ -1,0 +1,25 @@
+<!doctype html>
+<!--
+  INVESTIGATION-ONLY harness, not part of the shipped shell. Mounts one real native
+  module's real NativeModulePane directly (same imports/CSS as main.tsx) so a real
+  browser's cascade can be checked against the exact production CSS/JS bundling
+  behavior, without driving the full OIDC login flow. Selected via ?mod=&path=&theme=
+  query params. See qa-investigation/REPORT.md. Not for merge as-is.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>QA Harness</title>
+    <script>
+      // Must run before the module script's import graph evaluates (theme.ts's
+      // readInitialTheme() reads this at module-eval time, which happens before
+      // harness.tsx's own body code) -- same reason index.html has this inline, not
+      // in a module script.
+      document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") ?? "light";
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/qa-investigation/harness.tsx"></script>
+  </body>
+</html>

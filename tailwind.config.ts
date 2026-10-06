@@ -6,7 +6,12 @@ import type { Config } from "tailwindcss";
 // classes resolve against whatever attribute this config declares.
 export default {
   darkMode: ["selector", '[data-theme="dark"]'],
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  // INVESTIGATION PROTOTYPE (option A, see qa-investigation/REPORT.md) -- scanning each
+  // native module's published bundle means every dark:/base pair resolves inside this
+  // one Tailwind run, where Tailwind's own ordering guarantee (variants always emitted
+  // after base utilities) applies across all of them, not just within one module's own
+  // separate build. NOT for merge as-is: this is an ADR question, pending a ruling.
+  content: ["./index.html", "./src/**/*.{ts,tsx}", "./node_modules/@projectbooth/*-ui/dist/**/*.js"],
   theme: {
     extend: {
       colors: {

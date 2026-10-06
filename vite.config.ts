@@ -28,6 +28,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // INVESTIGATION PROTOTYPE: adds qa-investigation/harness.html as a second build
+    // entry, sharing the real app's CSS/JS import graph, so a real browser can be
+    // pointed at the exact production bundle without driving OIDC login. Not for merge.
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        harness: fileURLToPath(new URL("./qa-investigation/harness.html", import.meta.url)),
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,
