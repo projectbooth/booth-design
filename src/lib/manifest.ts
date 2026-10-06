@@ -37,6 +37,13 @@ export interface GroupedNav {
  * Groups installed, nav-visible modules into the shell's three fixed sections
  * (ADR 0017). Module Store, Home, and Settings are shell-level and never pass through
  * here (contracts/module-manifest.md: they "don't use this field").
+ *
+ * Within each section, modules are sorted by `displayName`. Neither ADR 0017 nor
+ * contracts/module-manifest.md defines an order/rank/weight field for modules within a
+ * section — this sort is this shell's own choice to make nav order deterministic
+ * (previously unsorted, so it depended on whatever order /api/modules happened to
+ * return, which could vary between a page reload and in-app navigation). If the
+ * manifest contract ever gains an explicit order field, prefer it over this fallback.
  */
 export function groupModulesByNav(modules: ModuleSummary[]): GroupedNav {
   const grouped: GroupedNav = { build: [], view: [], manage: [], unplaced: [] };
@@ -48,5 +55,11 @@ export function groupModulesByNav(modules: ModuleSummary[]): GroupedNav {
       grouped.unplaced.push(m);
     }
   }
+  const byDisplayName = (a: ModuleSummary, b: ModuleSummary) =>
+    a.displayName.localeCompare(b.displayName);
+  grouped.build.sort(byDisplayName);
+  grouped.view.sort(byDisplayName);
+  grouped.manage.sort(byDisplayName);
+  grouped.unplaced.sort(byDisplayName);
   return grouped;
 }

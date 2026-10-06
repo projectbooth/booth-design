@@ -289,3 +289,27 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    shape exists to prevent. `module-store-ui@0.3.0`'s bundled client now calls it and
    attaches `Authorization: Bearer` (confirmed by reading its built output, not
    assumed) — `credentials: "include"` is gone.
+7. ~~Nav order under Build/View/Manage wasn't stable~~ — **fixed** (reported on a live
+   droplet, 2026-10-06: Pipelines/Notebooks swapped, Manage reordered, between a full
+   page reload and in-app navigation). `src/lib/manifest.ts`'s `groupModulesByNav` put
+   modules into each section in whatever order `/api/modules` returned them, with no
+   sort. Checked both [ADR 0017](../booth-architecture/decisions/0017-shell-nav-taxonomy-build-view-manage.md)
+   and `contracts/module-manifest.md` for an existing order/rank/weight field first —
+   neither defines one, only `navGroup` for section membership. **Decision made here,
+   not assumed**: each section now sorts by `displayName`. Pinned by a test
+   (`manifest.test.ts`) that shuffles the input with a seeded PRNG across ten seeds and
+   asserts identical grouped output every time. If the manifest contract ever gains a
+   real order field, prefer it over this fallback.
+8. ~~Space Mono loaded from `fonts.googleapis.com`/`fonts.gstatic.com`~~ — **fixed**, so
+   an air-gapped install renders the same type with no runtime request to either host.
+   `src/styles/index.css` now imports `@fontsource/space-mono`'s `400.css`/`700.css`
+   (same two weights the Google Fonts `@import` requested) instead of the Google Fonts
+   URL; Vite bundles the package's own woff2/woff files as hashed local build assets
+   (confirmed in `dist/assets/` and in the built CSS — no `googleapis`/`gstatic`
+   reference survives). Pinned with a caret range like every other non-`@projectbooth/*`
+   dependency (ADR 0066's exact-pin rule is `@projectbooth/*`-only).
+
+   `Platform Shell (standalone).html` (repo root) still has a hardcoded `unpkg.com`
+   reference, but it's a static wireframe export — not referenced by `index.html`,
+   `vite.config.ts`, or anything the running shell serves — so it's out of scope here
+   and left untouched; flagging it in case it's worth cleaning up or removing on its own.
