@@ -15,6 +15,10 @@ name: CI
 # package actually satisfies the NativeModuleProps contract it's registered against
 # (src/__tests__/nativeModuleRegistrations.test.ts) — both run as part of the ordinary
 # test suite in the `test` job, not a separate one.
+#
+# `dark-mode-cascade` is its own job, not folded into `test`, because it needs a real
+# browser engine (jsdom, what `test` runs under, has no CSS cascade at all — see ADR
+# 0097 and scripts/check-dark-variants.mjs's own header comment for why).
 on:
   push:
     branches: [main]
@@ -54,6 +58,37 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Real-browser regression guard for the dark-mode cascade bug (ADR 0097). Separate
+  # from `test` on purpose: jsdom (what `test` runs under) has no CSS cascade engine at
+  # all, so it cannot see this class of bug regardless of what's asserted against it —
+  # src/__tests__/nativeModules.integration.test.tsx proved exactly that, passing
+  # unchanged on both the buggy and the fixed CSS. This job needs a real browser engine
+  # instead, which is also why it gets its own job rather than folding into `test`.
+  dark-mode-cascade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@projectbooth"
+
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check dark:bg-* variants render in dark mode
+        run: npm run check:dark-variants
 
   helm:
     runs-on: ubuntu-latest
