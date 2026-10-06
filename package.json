@@ -15,7 +15,7 @@
   "dependencies": {
     "@fontsource/space-mono": "^5.3.0",
     "@projectbooth/catalog-ui": "0.1.1",
-    "@projectbooth/database-ui": "0.1.2",
+    "@projectbooth/database-ui": "0.1.3",
     "@projectbooth/lakehouse-ui": "0.1.1",
     "@projectbooth/logging-ui": "0.1.0",
     "@projectbooth/module-store-ui": "0.3.3",
