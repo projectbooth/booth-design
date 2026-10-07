@@ -12,4 +12,20 @@ export default tseslint.config(
       sourceType: "module",
     },
   },
+  {
+    // CI tooling (scripts/check-dark-variants.mjs): a Node script whose page.evaluate()
+    // callbacks also reference browser globals directly, since they execute inside the
+    // Playwright-controlled page, not this process.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        document: "readonly",
+        getComputedStyle: "readonly",
+      },
+    },
+  },
 );

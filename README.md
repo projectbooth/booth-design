@@ -167,6 +167,53 @@ helm install booth-design charts/booth-design --namespace booth-design   --set o
   `helm lint`/`template` only — **not yet installed on a real cluster**; `booth-e2e` is the
   first thing that will do that.
 
+## Native module UI package obligations
+
+**ADR 0097**: this shell compiles one Tailwind build for itself *and* every registered
+native module together — `tailwind.config.ts`'s `content` scans
+`node_modules/@projectbooth/*-ui/dist/**/*.js` directly, not just this repo's own
+`src/`. `src/nativeModuleRegistrations.ts` no longer imports each module's own
+`dist/style.css` for utility classes (it used to; that's what caused the bug below).
+This puts two obligations on a module UI package that weren't obligations before:
+
+1. **A module's class names must appear as complete, static strings in its built
+   `dist/*.js`.** Tailwind's content scanner looks for literal substrings, not computed
+   values — `` `bg-${color}-500` `` or any other runtime-constructed class name won't be
+   found. This was already true for every module's build today (confirmed by scraping
+   real class-name pairs out of each one, see `scripts/check-dark-variants.mjs`), and
+   is the same constraint this shell's own `src/**/*.{ts,tsx}` content glob has always
+   been under — just now it also applies to a module's compiled output.
+2. **Non-utility CSS stays in `dist/style.css`.** Anything that isn't Tailwind-
+   generated — hand-authored CSS, a vendored library's own stylesheet, `@font-face`,
+   `@keyframes` not reachable via a utility class — has to still ship in the module's
+   own `dist/style.css`, because content-scanning only regenerates utility classes, never
+   arbitrary CSS. `pipeline-ui` is the one module whose `dist/style.css` import
+   `nativeModuleRegistrations.ts` still keeps, for exactly this reason:
+   `@xyflow/react`'s own base stylesheet
+   (`.react-flow__*`, the `dashdraw` keyframe for animated DAG edges) is bundled into its
+   `dist/style.css` alongside Tailwind utilities, and none of it is reachable by
+   scanning `dist/index.js` for class-name strings.
+
+### The bug this fixed
+
+Each module UI package is its own separate Tailwind build. Before ADR 0097, this shell
+imported all seven `dist/style.css` files side by side, concatenated in registration
+order. Tailwind's `dark:` variant compiles to a `:where(...)`-wrapped selector
+specifically so it carries **zero** extra specificity — by design, so a `dark:bg-x`
+utility ties (rather than outranks) a plain `bg-x` utility at the same specificity,
+(0,1,0) each. Within any *one* Tailwind build that's harmless, because Tailwind always
+emits variants after base utilities. Across *eight* separately-built stylesheets
+concatenated together, nothing guarantees that ordering holds globally — a later
+module's plain `bg-white` could land after, and so beat, an earlier module's
+`dark:bg-slate-950`. Confirmed live on a droplet 2026-10-06 (Storage and Logs rows
+staying light in dark mode) and reproduced by running `scripts/check-dark-variants.mjs`
+against a build of the pre-fix import setup: 12 elements across 5 of the 7 modules, not
+just the ones first noticed live. One consolidated build removes the multiple-separately-ordered-
+stylesheets precondition entirely, which is also why this wasn't just a dark-mode fix —
+the identical mechanism threatens any equal-specificity variant pair across modules,
+`md:`-breakpoint utilities included, since a `@media` wrapper contributes zero
+specificity of its own either.
+
 ## Testing
 
 Per `contracts/testing-strategy.md` / ADR 0024 — layers 1-2 only (see this repo's
@@ -175,9 +222,18 @@ Per `contracts/testing-strategy.md` / ADR 0024 — layers 1-2 only (see this rep
 ```
 npm run typecheck
 npm run lint
-npm test        # unit + contract tests
+npm test                    # unit + contract tests (jsdom)
 npm run build
+npm run check:dark-variants  # real-browser regression guard, ADR 0097 — needs `build` first
 ```
+
+`check:dark-variants` runs in its own CI job (`dark-mode-cascade`), separate from
+`test`: jsdom has no CSS cascade/specificity engine, so it cannot see the class of bug
+described above no matter what's asserted against it — this needs a real browser
+(Playwright/Chromium) checking the actual built CSS. It scrapes `dark:bg-*`/`bg-*`
+class-name pairs straight out of each `@projectbooth/*-ui` package's own built
+`dist/index.js` rather than hardcoding any, so a module adding, removing, or renaming a
+`dark:bg-*` class is picked up automatically next run.
 
 ## Open questions (flagged, not resolved here)
 
@@ -313,3 +369,10 @@ Found while building against the real `booth-core` and `booth-module-store` repo
    reference, but it's a static wireframe export — not referenced by `index.html`,
    `vite.config.ts`, or anything the running shell serves — so it's out of scope here
    and left untouched; flagging it in case it's worth cleaning up or removing on its own.
+9. ~~Dark-mode utility classes could lose to a same-specificity rule from a different
+   module's separately-built stylesheet~~ — **fixed, ADR 0097.** See "Native module UI
+   package obligations" above for the fix and the mechanism. Investigated first on
+   `investigate/dark-mode-cascade-bug` (diagnosis verification, an option-A prototype,
+   and an option-B effort estimate) before the ADR ruling; that branch's throwaway
+   harness/screenshots were never merged, only the production change and the
+   regression guard were.
