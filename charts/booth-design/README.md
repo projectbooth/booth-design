@@ -44,26 +44,34 @@ and not covered by this install." This section is that missing piece.
    Service carries no `NetworkPolicy` of its own, only Keycloak/Postgres/NATS do — it's
    just the simplest default and what the values above assume.)
 
-3. **Reaching the shell is the one genuinely open piece.** `booth-core`'s own Ingress
-   (`charts/booth-core/templates/ingress.yaml`) routes every path it doesn't claim for
-   Keycloak — including `/`, where a browser would expect the shell — straight to
-   **`booth-core`'s own Service**, not to this chart's. This chart ships no Ingress of
-   its own. So today, after step 2, the shell is running and reachable *inside* the
-   cluster (its Service), but `https://<ingress.host>/` does not yet reach it — that
-   would need either an Ingress rule added here (or to `booth-core`'s chart) pointed at
-   this chart's Service, which is out of scope for this repo's own release
-   (`booth-core`'s chart isn't touched from here). Until that lands, reach the shell
-   directly for testing:
+3. **Reaching the shell.** With `booth-core` v0.2.1 or newer, its own Ingress
+   (`charts/booth-core/templates/ingress.yaml`, ADR 0112) routes `/` — where a browser
+   expects the shell — to **this chart's Service** instead of to `booth-core`'s own,
+   once `ingress.shell.enabled` is true on `booth-core`'s install (the bundled default).
+   This chart still ships no Ingress of its own; `booth-core`'s is the only one. So once
+   step 2 has actually run, `https://<ingress.host>/` reaches the shell. Until step 2
+   runs, `/` returns `503` — `booth-core`'s Ingress is routing to a Service that doesn't
+   exist yet.
+
+   `booth-core`'s default (`ingress.shell.serviceName: booth-design`,
+   `ingress.shell.port: 8080`) assumes this chart is installed **in the same namespace as
+   `booth-core`**, under the release name `booth-design` (step 2's own example). That
+   namespace match isn't just the default — a Kubernetes Ingress can only route to a
+   Service in its own namespace, so `booth-core`'s Ingress cannot reach this chart's
+   Service at all if the two are in different namespaces, regardless of
+   `ingress.shell.serviceName`/`port`. Those two values only let you point at a
+   differently-named Service or port *within* `booth-core`'s namespace — e.g. if you
+   installed this chart under a release name other than `booth-design`, giving its
+   Service a different name, set `ingress.shell.serviceName` on `booth-core`'s install to
+   match.
+
+   To check reachability without depending on the Ingress or DNS/TLS for `ingress.host`:
 
    ```sh
    kubectl -n booth-system port-forward svc/booth-design 8080:8080
    # then open http://localhost:8080/ -- OIDC's redirect_uri is this origin, so a sign-in
    # started this way only round-trips correctly back to this same localhost:8080 URL.
    ```
-
-   Flagging this explicitly rather than asserting a working end-to-end LAN install: it
-   hasn't been exercised against a real cluster, and the gap above is real, not
-   theoretical.
 
 ## Chart reference
 
