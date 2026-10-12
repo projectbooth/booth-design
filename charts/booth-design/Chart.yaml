@@ -10,3 +10,13 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 home: https://github.com/projectbooth/booth-design
+
+# ADR 0113 / contracts/module-manifest.md "Chart annotation: identity keys": tells
+# booth-core's install API which of this chart's values.yaml paths carry the platform's
+# shared identity settings, so an install through the install API is configured without
+# hand-typed values. Only issuerUrl/clientId: this shell signs browsers in itself (ADR
+# 0032's client-side PKCE flow) and holds no JWKS, workload-issuer or groups-claim
+# setting of its own.
+annotations:
+  booth.projectbooth.io/identity-keys: |
+    {"issuerUrl":"oidc.issuerUrl","clientId":"oidc.clientId"}
