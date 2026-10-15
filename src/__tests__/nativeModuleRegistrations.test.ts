@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApiApp } from "@projectbooth/api-ui";
 import { ModuleStoreApp } from "@projectbooth/module-store-ui";
 import { StorageApp } from "@projectbooth/storage-ui";
 import { CatalogApp } from "@projectbooth/catalog-ui";
@@ -36,5 +37,9 @@ describe("nativeModuleRegistrations", () => {
 
   it("registers LakehouseApp under the manifest id `lakehouse`", () => {
     expect(getNativeModule("lakehouse")).toBe(LakehouseApp);
+  });
+
+  it("registers ApiApp under the manifest id `api`", () => {
+    expect(getNativeModule("api")).toBe(ApiApp);
   });
 });

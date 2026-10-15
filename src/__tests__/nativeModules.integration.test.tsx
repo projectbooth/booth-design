@@ -58,7 +58,9 @@ beforeEach(() => {
                       ? { items: [] }
                       : /\/modules\/lakehouse\/api\/admin\/warehouses$/.test(String(url))
                         ? { scope: "workspace", items: [] }
-                        : [];
+                        : /\/modules\/api\/api\/(apis|keys)(\?|$)/.test(String(url))
+                          ? { items: [] }
+                          : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
@@ -171,6 +173,16 @@ describe("lakehouse (real @projectbooth/lakehouse-ui)", () => {
   it("renders instead of the placeholder, and authenticates its requests", async () => {
     window.history.pushState({}, "", "/lakehouse");
     mount("lakehouse");
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
+  });
+});
+
+describe("api (real @projectbooth/api-ui)", () => {
+  it("renders instead of the placeholder, and authenticates its requests", async () => {
+    window.history.pushState({}, "", "/apis");
+    mount("api");
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
     expectAuthenticated(calls);
