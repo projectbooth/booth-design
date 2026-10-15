@@ -1,3 +1,4 @@
+import { ApiApp } from "@projectbooth/api-ui";
 import { ModuleStoreApp } from "@projectbooth/module-store-ui";
 import { StorageApp } from "@projectbooth/storage-ui";
 import { CatalogApp } from "@projectbooth/catalog-ui";
@@ -59,3 +60,7 @@ registerNativeModule("database", DatabaseApp);
 // create/delete action here — creating stays in the client library, deleting is
 // undecided. No adminNavPath split, same shape as database.
 registerNativeModule("lakehouse", LakehouseApp);
+
+// A single view (ADR 0100): choose a catalog dataset, generate its read-only REST/
+// GraphQL API, and issue or revoke API keys. No adminNavPath split.
+registerNativeModule("api", ApiApp);
