@@ -56,7 +56,24 @@ beforeEach(() => {
                     ? { workspace: "acme-analytics", provisioned: false, database: null, operator: false }
                     : /\/modules\/database\/api\/databases(\?|$)/.test(String(url))
                       ? { items: [] }
-                      : /\/modules\/lakehouse\/api\/admin\/warehouses$/.test(String(url))
+                      : /\/modules\/database\/api\/tables(\?|$)/.test(String(url))
+                        ? {
+                            workspace: "acme-analytics",
+                            provisioned: true,
+                            tables: [
+                              {
+                                schema: "public",
+                                name: "orders",
+                                kind: "table",
+                                comment: null,
+                                columns: [],
+                                approxRows: 10,
+                                schemaHash: "h1",
+                                writableThrough: [{ grant: "manual-grant", operations: ["insert"], columns: ["name"] }],
+                              },
+                            ],
+                          }
+                        : /\/modules\/lakehouse\/api\/admin\/warehouses$/.test(String(url))
                         ? { scope: "workspace", items: [] }
                         : /\/modules\/api\/api\/(apis|keys)(\?|$)/.test(String(url))
                           ? { items: [] }
@@ -110,6 +127,14 @@ describe("storage (real @projectbooth/storage-ui)", () => {
     const admin = mount("storage");
     await waitFor(() => expect(calls.some((c) => c.url.includes("/api/admin/backends"))).toBe(true));
     expect(admin.container.textContent).not.toBe(browseText);
+    expectAuthenticated(calls);
+  });
+
+  it('a booth-streamlit link opens the admin page straight to the "App uploads" tab', async () => {
+    window.history.pushState({}, "", "/storage/admin?panel=upload-grants");
+    mount("storage");
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/api/admin/upload-grants"))).toBe(true));
+    expect(screen.getByRole("tab", { name: "App uploads" })).toHaveAttribute("aria-selected", "true");
     expectAuthenticated(calls);
   });
 });
@@ -167,6 +192,15 @@ describe("database (real @projectbooth/database-ui)", () => {
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
     expectAuthenticated(calls);
   });
+
+  it('badges a table writable through an API, linking to /apis', async () => {
+    window.history.pushState({}, "", "/database/tables");
+    mount("database");
+    await waitFor(() => expect(calls.some((c) => c.url.includes("/api/tables"))).toBe(true));
+    const badge = await screen.findByRole("link", { name: "Writable through an API" });
+    expect(badge).toHaveAttribute("href", "/apis");
+    expectAuthenticated(calls);
+  });
 });
 
 describe("lakehouse (real @projectbooth/lakehouse-ui)", () => {
@@ -185,6 +219,49 @@ describe("api (real @projectbooth/api-ui)", () => {
     mount("api");
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(screen.queryByText(/aren't wired into the shell yet/)).toBeNull();
+    expectAuthenticated(calls);
+  });
+
+  it("prefills the grant banner from booth-streamlit's write-link URL params", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const headers: Record<string, string> = {};
+        new Headers(init?.headers).forEach((v, k) => (headers[k] = v));
+        calls.push({ url: String(url), headers });
+        const u = String(url);
+        const body = /\/modules\/api\/api\/apis\/[^/]+\/writes$/.test(u)
+          ? { apiId: "ds1", writes: null, columns: [], hasPrimaryKey: true, needsRegenerate: false, dataAccess: true }
+          : /\/modules\/api\/api\/apis(\?|$)/.test(u)
+            ? {
+                items: [
+                  {
+                    id: "ds1",
+                    datasetId: "cat1",
+                    datasetName: "Orders",
+                    slug: "ds1",
+                    table: { schema: "public", name: "orders" },
+                    columns: [],
+                    primaryKey: [],
+                    createdBy: "a@b.com",
+                    createdAt: "2026-10-15T00:00:00Z",
+                    generatedAt: "2026-10-15T00:00:00Z",
+                    writes: null,
+                  },
+                ],
+              }
+            : /\/modules\/api\/api\/keys(\?|$)/.test(u)
+              ? { items: [] }
+              : /\/(datasets)(\?|$)/.test(u)
+                ? { items: [], total: 0 }
+                : [];
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+      }),
+    );
+    window.history.pushState({}, "", "/apis?writeApi=ds1&writePrincipal=streamlit:acme:app1");
+    mount("api");
+    const banner = await screen.findByRole("status");
+    expect(banner.textContent).toMatch(/Grant\s*streamlit:acme:app1\s*writes to Orders: check the form under its Writes below\./);
     expectAuthenticated(calls);
   });
 });
