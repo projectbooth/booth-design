@@ -21,7 +21,7 @@
     "@projectbooth/lakehouse-ui": "0.1.1",
     "@projectbooth/logging-ui": "0.1.0",
     "@projectbooth/module-store-ui": "0.3.4",
-    "@projectbooth/pipeline-ui": "1.2.0",
+    "@projectbooth/pipeline-ui": "1.4.0",
     "@projectbooth/storage-ui": "0.1.2",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-dialog": "^1.1.23",

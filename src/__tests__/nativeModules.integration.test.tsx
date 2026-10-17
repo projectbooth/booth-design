@@ -78,7 +78,9 @@ beforeEach(() => {
                         ? { scope: "workspace", items: [] }
                         : /\/modules\/api\/api\/(apis|keys)(\?|$)/.test(String(url))
                           ? { items: [] }
-                          : [];
+                          : /\/service-accounts\/uses$/.test(String(url))
+                            ? { items: [] }
+                            : [];
       return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
     }),
   );
