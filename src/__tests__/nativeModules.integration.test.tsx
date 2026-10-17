@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { NativeModulePane } from "@/components/shell/NativeModulePane";
@@ -136,6 +137,74 @@ describe("storage (real @projectbooth/storage-ui)", () => {
     await waitFor(() => expect(calls.some((c) => c.url.includes("/api/admin/upload-grants"))).toBe(true));
     expect(screen.getByRole("tab", { name: "App uploads" })).toHaveAttribute("aria-selected", "true");
     expectAuthenticated(calls);
+  });
+
+  it("offers a Credential provider choice when adding an S3 backend, hiding the session token for SeaweedFS IAM", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const headers: Record<string, string> = {};
+        new Headers(init?.headers).forEach((v, k) => (headers[k] = v));
+        calls.push({ url: String(url), headers });
+        const u = String(url);
+        const body = /\/modules\/storage\/api\/kinds$/.test(u)
+          ? { kinds: ["s3", "filesystem", "azure", "gcs"], filesystemEnabled: true }
+          : [];
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+      }),
+    );
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/storage/admin");
+    mount("storage");
+    await user.click(await screen.findByRole("button", { name: "Add backend" }));
+
+    const form = within(screen.getByRole("form", { name: "Add a storage backend" }));
+    expect(form.getByLabelText("Credential provider")).toHaveValue("");
+    expect(form.getByLabelText("Session token")).toBeInTheDocument();
+
+    await user.selectOptions(form.getByLabelText("Credential provider"), "seaweedfs-iam");
+    expect(form.queryByLabelText("Session token")).not.toBeInTheDocument();
+    expect(form.getByText(/SeaweedFS IAM mints scoped access keys with no session token/)).toBeInTheDocument();
+  });
+
+  it("offers the same Credential provider choice when editing an existing S3 backend", async () => {
+    const existingBackend = {
+      id: "lake",
+      displayName: "Lake",
+      kind: "s3",
+      location: "s3://lake-bucket",
+      createdAt: "2026-10-01T00:00:00Z",
+      updatedAt: "2026-10-01T00:00:00Z",
+      config: { bucket: "lake-bucket" },
+      credentialsSet: true,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const headers: Record<string, string> = {};
+        new Headers(init?.headers).forEach((v, k) => (headers[k] = v));
+        calls.push({ url: String(url), headers });
+        const u = String(url);
+        const body = /\/modules\/storage\/api\/kinds$/.test(u)
+          ? { kinds: ["s3", "filesystem", "azure", "gcs"], filesystemEnabled: true }
+          : /\/modules\/storage\/api\/admin\/backends$/.test(u)
+            ? [existingBackend]
+            : [];
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) } as Response;
+      }),
+    );
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/storage/admin");
+    mount("storage");
+    await user.click(await screen.findByRole("button", { name: "Edit Lake" }));
+
+    const form = within(screen.getByRole("form", { name: "Edit Lake" }));
+    expect(form.getByLabelText("Credential provider")).toHaveValue(""); // MinIO admin API, this backend's saved default
+    expect(form.getByLabelText("Session token")).toBeInTheDocument();
+
+    await user.selectOptions(form.getByLabelText("Credential provider"), "seaweedfs-iam");
+    expect(form.queryByLabelText("Session token")).not.toBeInTheDocument();
+    expect(form.getByText(/SeaweedFS IAM mints scoped access keys with no session token/)).toBeInTheDocument();
   });
 });
 
