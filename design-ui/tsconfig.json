@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/vendor/*"]
+    },
+    // Clears the root tsconfig's "types": ["vitest/globals", "@testing-library/jest-dom"] —
+    // inherited via extends, but design-ui has no tests of its own and doesn't install those
+    // packages, so resolving them here just fails.
+    "types": []
+  },
+  "include": ["src/index.ts"]
+}

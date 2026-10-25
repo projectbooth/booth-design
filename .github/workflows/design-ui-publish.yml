@@ -1,0 +1,38 @@
+name: Publish design-ui package
+
+# design-ui/README.md: @projectbooth/design-ui is published to GitHub Packages, the same
+# registry every @projectbooth/*-ui module already uses, so modules can depend on it as an
+# ordinary npm dependency. Mirrors every module's own publish.yml (e.g. booth-pipeline's),
+# with a distinct tag prefix since this package is published from booth-design's own repo
+# alongside the shell's own vX.Y.Z release tags.
+on:
+  push:
+    tags:
+      - "design-ui-v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: design-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@projectbooth"
+          cache: npm
+          cache-dependency-path: design-ui/package-lock.json
+      - run: npm ci
+      - name: Build (do not publish something CI has not built fresh from source)
+        run: npm run build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
