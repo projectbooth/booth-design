@@ -15,7 +15,7 @@ spec:
         {{- include "booth-design.selectorLabels" . | nindent 8 }}
       annotations:
         # Roll the pod when config changes: /config.js is written once at container start.
-        checksum/config: {{ printf "%s|%s|%s|%s" .Values.oidc.issuerUrl .Values.oidc.clientId .Values.core.gatewayUrl .Values.proxy.clientMaxBodySize | sha256sum }}
+        checksum/config: {{ printf "%s|%s|%s|%s|%s" .Values.oidc.issuerUrl .Values.oidc.clientId .Values.core.gatewayUrl .Values.proxy.clientMaxBodySize .Values.features.projects | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -42,6 +42,8 @@ spec:
               value: {{ required "oidc.clientId is required" .Values.oidc.clientId | quote }}
             - name: CLIENT_MAX_BODY_SIZE
               value: {{ .Values.proxy.clientMaxBodySize | quote }}
+            - name: ENABLE_PROJECTS
+              value: {{ .Values.features.projects | quote }}
           livenessProbe:
             httpGet:
               path: /healthz

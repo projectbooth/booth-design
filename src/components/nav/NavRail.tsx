@@ -1,5 +1,6 @@
 import { NavButton } from "./NavButton";
 import { NavSection } from "./NavSection";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { Avatar } from "@/components/ui/Avatar";
 import { BuildIcon, HomeIcon, ManageIcon, SettingsIcon, StoreIcon, ViewIcon } from "@/components/ui/icons";
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import { logout } from "@/lib/auth/authClient";
+import { isProjectsEnabled } from "@/lib/featureFlags";
 import { groupModulesByNav } from "@/lib/manifest";
 import { useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -46,6 +48,7 @@ export function NavRail() {
       </div>
 
       <WorkspaceSwitcher />
+      {isProjectsEnabled() && <ProjectSwitcher />}
 
       <NavButton to="/" icon={<HomeIcon />}>
         Home

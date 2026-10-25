@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 import { ChevronDownIcon } from "@/components/ui/icons";
 import { useSession } from "@/lib/session";
+import { useWorkspaceSwitch } from "@/lib/useWorkspaceSwitch";
 
 /**
  * Built against ADR 0025's claim shape directly: memberships are `/workspaces/<slug>/
@@ -15,7 +16,8 @@ import { useSession } from "@/lib/session";
  * with no independent "list all workspaces" call.
  */
 export function WorkspaceSwitcher() {
-  const { identity, activeWorkspace, setActiveWorkspace } = useSession();
+  const { identity, activeWorkspace } = useSession();
+  const selectWorkspace = useWorkspaceSwitch();
 
   if (!identity) {
     return (
@@ -49,7 +51,7 @@ export function WorkspaceSwitcher() {
       <DropdownMenuContent className="w-[calc(var(--nav-width)-24px)]">
         <DropdownMenuLabel>Switch workspace</DropdownMenuLabel>
         {identity.memberships.map((m) => (
-          <DropdownMenuItem key={m.workspace} onSelect={() => setActiveWorkspace(m.workspace)}>
+          <DropdownMenuItem key={m.workspace} onSelect={() => selectWorkspace(m.workspace)}>
             <span className="flex-1 truncate">{m.workspace}</span>
             <span className="text-[11px] uppercase text-text-muted">{m.role}</span>
           </DropdownMenuItem>
