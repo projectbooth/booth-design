@@ -94,3 +94,13 @@ export function FallbackModuleIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function HelpCircleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="7" />
+      <path d="M6.8 7a2.2 2.2 0 1 1 3.3 1.9c-.6.4-1.1.8-1.1 1.6v.3" />
+      <circle cx="9" cy="13" r="0.75" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}

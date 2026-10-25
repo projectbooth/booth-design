@@ -7,6 +7,7 @@ import { ModuleStorePage } from "@/pages/ModuleStorePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SessionProvider, useSession } from "@/lib/session";
 import { AuthGate } from "@/lib/auth/AuthGate";
+import { TooltipProvider } from "@/components/ui/Tooltip";
 
 function Gate() {
   const { identity, loading, error, activeWorkspace } = useSession();
@@ -49,7 +50,9 @@ export function App() {
     <AuthGate>
       <BrowserRouter>
         <SessionProvider>
-          <Gate />
+          <TooltipProvider delayDuration={300}>
+            <Gate />
+          </TooltipProvider>
         </SessionProvider>
       </BrowserRouter>
     </AuthGate>
