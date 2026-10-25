@@ -1,4 +1,4 @@
-import type { Identity, ModuleSummary } from "./types";
+import type { Identity, ModuleSummary, ProjectSummary } from "./types";
 import { getAccessToken } from "@/lib/auth/tokenStore";
 import { handleUnauthorized } from "@/lib/auth/authClient";
 
@@ -54,11 +54,18 @@ export async function listModules(workspace?: string): Promise<ModuleSummary[]> 
   return request<ModuleSummary[]>("/api/modules", { workspace });
 }
 
-export async function getIframeUrl(moduleId: string, workspace?: string): Promise<string> {
-  const { url } = await request<{ url: string }>(`/api/modules/${moduleId}/iframe-url`, {
+export async function getIframeUrl(moduleId: string, workspace?: string, project?: string): Promise<string> {
+  const qs = project ? `?project=${encodeURIComponent(project)}` : "";
+  const { url } = await request<{ url: string }>(`/api/modules/${moduleId}/iframe-url${qs}`, {
     workspace,
   });
   return url;
+}
+
+/** GET /api/projects (contracts/projects.md, ADR 0124) — behind the features.projects
+ *  flag until booth-core ships the registry. */
+export async function listProjects(workspace?: string): Promise<ProjectSummary[]> {
+  return request<ProjectSummary[]>("/api/projects", { workspace });
 }
 
 export interface InstallModuleRequest {
