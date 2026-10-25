@@ -9,6 +9,10 @@ export interface HelpHintProps {
   /** Screen-reader name for the hint button itself, when `label` alone wouldn't make
    *  sense out of context (e.g. several hints on one row). Defaults to `label`. */
   ariaLabel?: string;
+  /** Opens the tooltip immediately on mount instead of waiting for hover/focus — a real
+   *  Radix capability (e.g. drawing attention to a hint during onboarding), and also
+   *  what tests use to check the rendered content without simulating hover/focus timing. */
+  defaultOpen?: boolean;
   className?: string;
 }
 
@@ -18,9 +22,9 @@ export interface HelpHintProps {
  * and Escape-to-dismiss, so no custom keyboard handling is needed here. Requires a
  * `TooltipProvider` higher in the tree (mounted once in App.tsx).
  */
-export function HelpHint({ label, ariaLabel, className }: HelpHintProps) {
+export function HelpHint({ label, ariaLabel, defaultOpen, className }: HelpHintProps) {
   return (
-    <Tooltip>
+    <Tooltip defaultOpen={defaultOpen}>
       <TooltipTrigger asChild>
         <button
           type="button"
