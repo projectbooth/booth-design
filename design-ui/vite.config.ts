@@ -17,6 +17,13 @@ import react from "@vitejs/plugin-react";
 // module's bundled import resolves against.
 export default defineConfig({
   plugins: [react()],
+  // This package never processes CSS itself (it ships Tailwind class-name strings for a
+  // consuming module's own Tailwind build to pick up, per README.md). Without this, Vite's
+  // PostCSS auto-discovery walks up from design-ui/ and finds the app's own
+  // ../postcss.config.js (which needs ../node_modules/tailwindcss — not installed here,
+  // design-ui has its own separate, minimal node_modules) and fails the build trying to
+  // load a config this package has no use for.
+  css: { postcss: {} },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src/vendor", import.meta.url)),
