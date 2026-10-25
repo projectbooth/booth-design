@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "public"] },
+  { ignores: ["dist", "public", "design-ui/dist", "design-ui/src/vendor", "design-ui/node_modules"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -25,6 +25,17 @@ export default tseslint.config(
         process: "readonly",
         document: "readonly",
         getComputedStyle: "readonly",
+      },
+    },
+  },
+  {
+    // design-ui/scripts/sync-source.mjs: a plain Node script, no browser globals needed.
+    files: ["design-ui/scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        console: "readonly",
       },
     },
   },

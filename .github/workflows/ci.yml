@@ -90,6 +90,29 @@ jobs:
       - name: Check dark:bg-* variants render in dark mode
         run: npm run check:dark-variants
 
+  # design-ui/ is a second, independent npm package (@projectbooth/design-ui) published from
+  # this repo — see design-ui/README.md. Its own node_modules/package-lock.json, kept separate
+  # from the app's, since it has no @projectbooth/* dependencies of its own and needs no
+  # GitHub Packages auth to install.
+  design-ui:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: design-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: design-ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Build (sync-source.mjs, vite build, tsc declarations)
+        run: npm run build
+
   helm:
     runs-on: ubuntu-24.04
     steps:
