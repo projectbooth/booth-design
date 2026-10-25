@@ -29,6 +29,13 @@ proxy:
   # through booth-storage). "0" disables the limit.
   clientMaxBodySize: 512m
 
+features:
+  # ADR 0124: the project picker is built against contracts/projects.md ahead of
+  # booth-core shipping the project registry. Off by default — turn on with
+  # `--set features.projects=true` once GET /api/projects exists; a module that hasn't
+  # adopted project filtering is unaffected either way (ADR 0124 point 6).
+  projects: false
+
 service:
   type: ClusterIP
   port: 8080

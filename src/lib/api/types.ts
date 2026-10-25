@@ -45,3 +45,15 @@ export interface ModuleSummary {
   uiIntegrationMode?: "native" | "iframe-proxy";
   phase?: string;
 }
+
+/** GET /api/projects response shape (contracts/projects.md, ADR 0124). Behind the
+ *  features.projects flag until booth-core ships the registry. */
+export interface ProjectSummary {
+  slug: string;
+  name: string;
+  parent?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  archived?: boolean;
+}
