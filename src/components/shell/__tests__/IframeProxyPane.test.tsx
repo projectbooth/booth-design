@@ -1,5 +1,7 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 import { IframeProxyPane } from "../IframeProxyPane";
 import { useTheme } from "@/lib/theme";
 import type { Membership, ModuleSummary } from "@/lib/api/types";
@@ -9,6 +11,12 @@ vi.mock("@/lib/session", () => ({ useSession: () => ({ activeWorkspace }) }));
 
 const getIframeUrl = vi.fn();
 vi.mock("@/lib/api/client", () => ({ getIframeUrl: (...args: unknown[]) => getIframeUrl(...args) }));
+
+// useActiveProject() (ADR 0124) needs a Router; this suite doesn't exercise project
+// switching, so a plain MemoryRouter wrapper with no project param is enough.
+function renderPane(children: ReactElement) {
+  return render(<MemoryRouter>{children}</MemoryRouter>);
+}
 
 const mod: ModuleSummary = { id: "notebooks", displayName: "Notebooks", version: "0.1.0", hasOwnUi: true };
 
@@ -38,7 +46,7 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
     let call = 0;
     getIframeUrl.mockImplementation(() => Promise.resolve(`https://shell.example/iframe/notebooks/?t=tok-${++call}`));
 
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     expect(getIframeUrl).toHaveBeenCalledTimes(1);
 
@@ -64,7 +72,7 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
 
   it("a failed renewal doesn't surface an error or unmount the iframe", async () => {
     getIframeUrl.mockResolvedValueOnce("https://shell.example/iframe/notebooks/?t=tok-1");
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     expect(screen.getByTitle("Notebooks")).toBeInTheDocument();
 
@@ -77,7 +85,7 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
 
   it("stops renewing once unmounted", async () => {
     getIframeUrl.mockImplementation(() => Promise.resolve("https://shell.example/iframe/notebooks/?t=tok"));
-    const { unmount } = render(<IframeProxyPane module={mod} />);
+    const { unmount } = renderPane(<IframeProxyPane module={mod} />);
     await flush();
     expect(getIframeUrl).toHaveBeenCalledTimes(1);
 
@@ -88,12 +96,12 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
 
   it("restarts the renewal cycle when the module changes", async () => {
     getIframeUrl.mockImplementation((id: string) => Promise.resolve(`https://shell.example/iframe/${id}/?t=tok`));
-    const { rerender } = render(<IframeProxyPane module={mod} />);
+    const { rerender } = renderPane(<IframeProxyPane module={mod} />);
     await flush();
     expect(getIframeUrl).toHaveBeenCalledTimes(1);
 
     const otherModule: ModuleSummary = { id: "superset", displayName: "Superset", version: "0.1.0", hasOwnUi: true };
-    rerender(<IframeProxyPane module={otherModule} />);
+    rerender(<MemoryRouter><IframeProxyPane module={otherModule} /></MemoryRouter>);
     await flush();
     expect(getIframeUrl).toHaveBeenCalledTimes(2);
     expect(screen.getByTitle("Superset")).toBeInTheDocument();
@@ -120,7 +128,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("replies with the current theme when the iframe sends booth:iframe-ready", async () => {
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
 
     const iframe = screen.getByTitle("Notebooks") as HTMLIFrameElement;
@@ -141,7 +149,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("ignores a ready message from the wrong origin", async () => {
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
     const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
@@ -158,7 +166,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("ignores a message claiming to be from a source that isn't the mounted iframe", async () => {
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
     const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
@@ -175,7 +183,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("ignores a same-origin, same-source message of an unrecognized type", async () => {
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
     const postMessageSpy = vi.spyOn(contentWindow, "postMessage");
@@ -192,7 +200,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("posts again to the mounted iframe when the shell's theme changes elsewhere, with no src reload", async () => {
-    render(
+    renderPane(
       <>
         <ThemeToggler />
         <IframeProxyPane module={mod} />
@@ -213,7 +221,7 @@ describe("IframeProxyPane theme sync (ADR 0075)", () => {
   });
 
   it("is a complete no-op for a module that never sends booth:iframe-ready", async () => {
-    render(<IframeProxyPane module={mod} />);
+    renderPane(<IframeProxyPane module={mod} />);
     await flush();
     const contentWindow = (screen.getByTitle("Notebooks") as HTMLIFrameElement).contentWindow!;
     const postMessageSpy = vi.spyOn(contentWindow, "postMessage");

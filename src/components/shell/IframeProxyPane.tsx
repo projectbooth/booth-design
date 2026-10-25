@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getIframeUrl } from "@/lib/api/client";
+import { useActiveProject } from "@/lib/project";
 import { useSession } from "@/lib/session";
 import { useTheme, type Theme } from "@/lib/theme";
 import type { ModuleSummary } from "@/lib/api/types";
@@ -37,6 +38,7 @@ function isIframeReadyMessage(data: unknown): data is IframeReadyMessage {
 export function IframeProxyPane({ module }: { module: ModuleSummary }) {
   const { activeWorkspace } = useSession();
   const { theme } = useTheme();
+  const { activeProject } = useActiveProject();
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -46,7 +48,7 @@ export function IframeProxyPane({ module }: { module: ModuleSummary }) {
     setUrl(null);
     setError(null);
 
-    getIframeUrl(module.id, activeWorkspace?.workspace)
+    getIframeUrl(module.id, activeWorkspace?.workspace, activeProject ?? undefined)
       .then((u) => {
         if (!cancelled) setUrl(u);
       })
@@ -63,8 +65,13 @@ export function IframeProxyPane({ module }: { module: ModuleSummary }) {
     // still-mounted iframe keeps working regardless, the next tick tries again, and if
     // every tick fails until the cookie truly lapses, that's a real failure the embedded
     // UI's own requests will surface — not something to retry faster for from out here.
+    //
+    // A project change (ADR 0124) instead re-runs this whole effect (see the dependency
+    // array below) rather than waiting for this timer: contracts/projects.md's
+    // iframe-url passthrough re-points the iframe's `src` outright (key={url} below forces
+    // the remount), unlike theme's postMessage sync — accepted deliberately, not an oversight.
     const renew = () => {
-      getIframeUrl(module.id, activeWorkspace?.workspace)
+      getIframeUrl(module.id, activeWorkspace?.workspace, activeProject ?? undefined)
         .then((freshUrl) => fetch(freshUrl, { credentials: "same-origin" }))
         .catch(() => {});
     };
@@ -74,7 +81,7 @@ export function IframeProxyPane({ module }: { module: ModuleSummary }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [module.id, activeWorkspace?.workspace]);
+  }, [module.id, activeWorkspace?.workspace, activeProject]);
 
   // ADR 0075: an optional, opt-in postMessage channel so an iframe-proxy module's
   // embedded content can live-sync with the shell's dark/light theme. Generic across

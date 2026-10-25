@@ -17,6 +17,7 @@ once per deployment, not through the module registry.
 | `oidc.clientId` | `booth-design` | The public (no-secret) client. Must match the client `booth-core` (or its bundled Keycloak) is configured with. |
 | `proxy.clientMaxBodySize` | `512m` | Largest request body nginx forwards to a module (e.g. a file upload through `booth-storage`). `"0"` disables the limit. |
 | `service.type` / `service.port` / `service.nodePort` | `ClusterIP` / `8080` / `null` | `nodePort` is only read when `type` is `NodePort`. |
+| `features.projects` | `false` | ADR 0124's project picker, built against `contracts/projects.md` ahead of `booth-core` shipping the project registry. Turn on only once `GET /api/projects` actually exists — until then, enabling it just gets a picker that 404s/503s. |
 
 ## Installing next to `booth-core`
 

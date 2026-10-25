@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/cn";
+import { useSearchPreservingTo } from "@/lib/searchPreservingTo";
 
 export interface NavButtonProps {
   to: string;
@@ -13,9 +14,10 @@ export interface NavButtonProps {
 }
 
 export function NavButton({ to, icon, children, indent, end }: NavButtonProps) {
+  const target = useSearchPreservingTo(to);
   return (
     <NavLink
-      to={to}
+      to={target}
       end={end}
       className={({ isActive }) =>
         cn(

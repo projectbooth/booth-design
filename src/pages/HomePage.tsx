@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
+import { useSearchPreservingTo } from "@/lib/searchPreservingTo";
 import { useSession } from "@/lib/session";
 
 export function HomePage() {
   const { identity, activeWorkspace } = useSession();
+  const storeTarget = useSearchPreservingTo("/store");
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-12">
@@ -15,7 +17,7 @@ export function HomePage() {
 
       <div className="mt-8 flex gap-3">
         <Link
-          to="/store"
+          to={storeTarget}
           className="rounded-md border border-border bg-bg-elevated px-4 py-2.5 text-[13.5px] font-semibold text-text hover:bg-bg-sunken"
         >
           Module Store
