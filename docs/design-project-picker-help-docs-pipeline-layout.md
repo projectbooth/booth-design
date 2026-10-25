@@ -2,7 +2,28 @@
 
 Status: **draft, for coordinator review.** No code except §2a's tooltip primitive (built now, per explicit instruction — other modules are waiting on the pattern). Everything else here is note-only until reviewed.
 
-Sources: ADR 0124 (projects), `agent-briefs/ux-feedback-2026-10-24.md` items 1, 2, 5, 7, 8.
+Sources: ADR 0124 (projects), `agent-briefs/ux-feedback-2026-10-24.md` items 1, 2, 5, 7, 8; booth-pipeline's `docs/decisions/0004-ui-component-library.md`; the merged `contracts/projects.md` and the "Project selection" section added to `contracts/ui-integration.md`.
+
+**Revision, 2026-10-25:** added §0 (shared component package — booth-pipeline's finding that no module can actually import booth-design's components today, confirmed independently against `contracts/ui-integration.md`'s own "built on booth-design's shared component library" line). Updated §1's "Reaching native modules" and "Reaching iframe-proxied modules" to match the now-merged `contracts/projects.md` contract, replacing what were previously this note's own proposals — core's design note landed and the coordinator ruled on it after this note's first draft. Original open questions 2 and 3 are resolved below; everything else is unchanged from the first draft.
+
+---
+
+## 0. Shared component package
+
+Two independent findings point at the same gap. `contracts/ui-integration.md` already says native-mode modules are "built on `booth-design`'s shared component library" — but `@booth/design`'s `package.json` is `"private": true` and exports nothing; `booth-catalog`, `booth-storage`, `booth-module-store` and `booth-pipeline` each hand-rolled their own local primitives against the same Tailwind/OKLCH tokens instead (booth-pipeline's `docs/decisions/0004-ui-component-library.md`, flagged 2026-09-21 and never resolved — asking for exactly this: either publish `@projectbooth/design-ui`, or confirm duplication is the intended v0 answer). This matters now because §2a's `HelpHint`, and §3's sticky action bar / collapsible panel, only help if a module can actually `npm install` them rather than hand-copy a markup spec.
+
+**Package.** Extract `src/components/ui/` into a published `@projectbooth/design-ui`, on the same GitHub Packages registry every other `@projectbooth/*` package already uses. Source stays in this repo — no second repo, no monorepo migration — add a second build target (Vite library mode) that packages the same `src/components/ui/*.tsx` files into a publishable `dist/`, alongside the existing app build. The shell app keeps importing `@/components/ui/*` locally, unchanged; the published package is built from the identical source, so there is exactly one copy to drift.
+
+**What ships in v0:** the presentational primitives only — `Button`, `Field`, `Input`, `Select`, `Switch`, `DropdownMenu`, `DataTable`, `StatusBadge`, `Avatar`, `Tooltip`/`HelpHint`, the icon set — plus a Tailwind preset exporting the `theme.extend.colors` block and the `darkMode: ["selector", '[data-theme="dark"]']` strategy, so a module's own `tailwind.config.ts` can write `presets: [require("@projectbooth/design-ui/tailwind-preset")]` instead of hand-copying it (today's actual, undocumented convention — this repo's own `tailwind.config.ts` comment already says "every module ships the same default-theme Tailwind config... beyond this repo's own," true today only because every module's author keeps it in sync by hand). **Not** in v0: `NavRail`, `WorkspaceSwitcher`, `ShellLayout`, `SessionProvider`, `useTheme`/`useSession` — app-level routing/auth/layout, not reusable presentational pieces; a module already receives `theme` as a prop via the existing `{workspace, role, theme, getAccessToken}` contract without needing the hook itself.
+
+**Versioning and consumption.** Same exact-pin convention every `@projectbooth/*-ui` dependency in this repo's own `package.json` already follows (e.g. `"@projectbooth/pipeline-ui": "1.5.0"`, no caret) — a module adds `@projectbooth/design-ui` as a normal dependency and pins it exactly, bumping by hand like any other. No lockstep requirement: ADR 0097 already means each module bundles its own compiled output independently, and the shell's Tailwind content glob just scans literal class-name strings in each module's `dist/*.js` regardless of which `design-ui` version produced them — so different modules can sit on different `design-ui` versions simultaneously with no conflict, the same tolerance that already exists for `pipeline-ui` 1.5.0 and `storage-ui` 0.1.2 coexisting in this shell today.
+
+**Two new obligations this adds for a consuming module**, alongside this repo's existing "Native module UI package obligations" (`README.md`):
+
+1. **Add `node_modules/@projectbooth/design-ui/dist/**/*.js` to the module's own Tailwind `content` glob**, not just its own `src/`. A component imported from `design-ui` ships its class names inside `design-ui`'s compiled output, not the consuming module's own source — a module's Tailwind build only generates CSS for classes it can find as literal strings in whatever its own `content` glob scans. Skipping this silently produces an unstyled `Button`/`DataTable`/etc., not an error.
+2. **Anything in `design-ui` that uses React Context (`Tooltip`/`HelpHint`, `DropdownMenu`, `Select` — every Radix primitive) needs its own `Provider` mounted within the consuming module's own subtree**, not shared with the shell's. Each package bundles its own copy of `design-ui`'s compiled code, including the Context object itself — React matches a context value to a `useContext()` call by object identity, not by name, so a module's own bundled `HelpHint` will never see the shell's `<TooltipProvider>` three packages away, even though both ultimately came from the "same" source. A module using `HelpHint` must wrap its own usage in its own `<TooltipProvider>`. (This is exactly why the merged `contracts/projects.md` has native modules read `?project=` straight off `window.location.search` rather than through a React hook shared with the shell — the same underlying constraint, independently arrived at by core's design note.)
+
+**Status:** booth-pipeline will send its own component requirements as a short note in its repo's docs — this section is the publishing/consumption mechanism to build against once that lands, not the requirements themselves.
 
 ---
 
@@ -21,7 +42,7 @@ Same `DropdownMenu` primitive `WorkspaceSwitcher` already uses, extended for a t
 - Archived projects (point 2) are hidden from the picker entirely — archiving hides, never deletes, so archived projects' resources stay visible under whatever grouping a module already shows, but you can't newly scope *to* an archived project.
 - Optional `color`/`icon` (point 2) render as a small dot before the name, same visual slot `StatusBadge`'s `dot` prop already uses.
 
-Backing data: `GET /api/v1/projects` (ADR point 7) — needs a new `listProjects()` in `src/lib/api/client.ts`, same shape as `listModules()`. The exact response shape is core's design note's call, not decided here; this note assumes `{slug, name, parent, description, color, icon}` per the ADR's field list. **Open question 2:** confirm this shape once core's note exists (none written yet as of this note).
+Backing data: `GET /api/projects` (confirmed; `contracts/projects.md` drops the `v1` the ADR sketched) — needs a new `listProjects()` in `src/lib/api/client.ts`, same shape as `listModules()`. Response shape per the merged contract: `{slug, name, parent?, description?, color?, icon?, archived?}`. Archived projects (see above) are filtered out of the picker client-side using that `archived` field.
 
 ### Empty / "No project" state
 
@@ -35,16 +56,13 @@ Unlike `useTheme()`'s module-level `useSyncExternalStore` pattern (needed becaus
 
 ### Reaching native modules
 
-Additive, optional prop on the existing contract (ADR 0031/0033): `project?: string` alongside `workspace`, `role`, `theme`, `getAccessToken` in `NativeModulePane`. A module that doesn't destructure it is unaffected, matching ADR point 6's "a module that has not adopted it ignores it and shows everything." This needs a `contracts/ui-integration.md` bump — additive/non-breaking, but still a contract change, not booth-design's to declare unilaterally.
+**Resolved by the merged contract — simpler than this note first proposed.** No new prop, no `contracts/ui-integration.md` bump: `contracts/projects.md` has native-mode modules read `?project=<slug>` directly off `window.location.search`, not through a prop the shell passes. This sidesteps §0's React-context-identity problem entirely — there's nothing to share here, `window.location` is a plain browser API, the same object regardless of which package's bundle reads it — and needs zero coordination with any native module's own package to adopt: a module that doesn't look at the query string keeps showing everything, exactly ADR point 6's fallback, with no contract change on either side.
 
 ### Reaching iframe-proxied modules
 
-This is the one piece ADR point 6 explicitly left to this note. Two options:
+**Resolved by the merged contract.** `GET /api/modules/{id}/iframe-url` now accepts an optional `?project=<slug>` that `IframeURLIssuer.URLFor` appends to the minted src; the shell re-requests the URL and re-points `IframeProxyPane`'s iframe (full remount, same `key={url}` mechanism already there) when the picker changes.
 
-1. **Query string on the proxied URL.** Simple, but `IframeProxyPane` already keys the iframe's `key={url}` to force a full remount on URL change — deliberately avoided for theme (ADR 0075) because it would drop live embedded state (an open notebook, an in-progress Superset edit). Changing `project` on every switch would hit the same problem, and project-switching is meant to be frequent ("reachable from pretty much everywhere").
-2. **postMessage, mirroring the exact `booth:theme` precedent.** A new `booth:project` message type, posted on the existing `booth:iframe-ready` handshake and again whenever the selection changes — same origin-checked, same-origin-by-construction channel already in `IframeProxyPane.tsx`. No remount, no lost state.
-
-**Recommending (2)**, for the same reason ADR 0075 chose it for theme. Caveat: adoption is cooperative — the embedded page's own JS has to listen and self-filter, and that JS isn't booth-design's to write for third-party embeds (Superset, JupyterHub, a module's own iframe-proxy UI). **Open question 3:** this needs sign-off from whoever owns each iframe-proxied module's embedded code, not just booth-design.
+This is the opposite of what this note originally recommended here — a `postMessage` channel mirroring the exact `booth:theme` precedent, specifically to avoid the remount/lost-state problem ADR 0075 solved for theme. The coordinator's ruling on core's design note approved the query-string passthrough as the one core change instead, keeping `postMessage` live-update explicitly as an optional, no-core-change-needed follow-up. Noting the accepted consequence plainly rather than re-arguing a decided point: switching projects will reload any iframe-proxied module currently open (a live notebook, an in-progress Superset edit) — the same tradeoff ADR 0075 avoided for theme, accepted here instead.
 
 ---
 
@@ -54,7 +72,7 @@ This is the one piece ADR point 6 explicitly left to this note. Two options:
 
 Added `src/components/ui/Tooltip.tsx` (thin `@radix-ui/react-tooltip` wrapper, same style as `DropdownMenu.tsx`) and `src/components/ui/HelpHint.tsx` (the "?" affordance: a small round button showing `label` in a tooltip on hover or keyboard focus, built on `Tooltip`). See the tooltip PR for the actual component. Radix wires focus/hover/Escape-to-dismiss and `aria-describedby` automatically — no custom keyboard handling needed.
 
-**How a module supplies help text.** Each module UI package is a separately built bundle (ADR 0097) — booth-design's component library isn't importable from them any more than `DataTable` or `StatusBadge` are today. So this isn't a shared import; it's a markup spec a module replicates in its own codebase against the same design tokens every module already uses:
+**How a module supplies help text.** Once §0's `@projectbooth/design-ui` exists, the real answer is `import { HelpHint } from "@projectbooth/design-ui"` directly (with the module's own `TooltipProvider` per §0's second obligation). Until then — each module UI package is a separately built bundle (ADR 0097), and `design-ui` isn't published yet — it's a markup spec a module replicates in its own codebase against the same design tokens every module already uses:
 
 ```html
 <button type="button" aria-label="<the help text, or a more specific label>"
@@ -88,7 +106,7 @@ A module that omits `docsPath` simply has no Docs section, the same "absent fiel
 
 ## 3. Pipeline editor layout
 
-booth-pipeline is building a first compact pass with its own existing components and will send concrete requirements; this proposes the *pattern* to reconcile against, not a final layout. Same caveat as §2a: no shared component code crosses package boundaries, so this is a spec, not an import.
+booth-pipeline is sending its own component requirements as a short note in its repo's docs (§0); this proposes the *pattern* to reconcile against once that lands, not a final layout. Unlike this note's original premise, these don't have to stay spec-only forever: once §0's `@projectbooth/design-ui` exists, a sticky action bar and a collapsible panel belong there as real shared components, not per-module reimplementations. Described below as a pattern either way — a spec to replicate now, a `design-ui` export once it ships.
 
 - **Collapsible panels.** Recommend the native `<details>/<summary>` element over a hand-rolled ARIA disclosure — free keyboard/AT support, styled to match (`border-border` panel, `bg-bg-elevated` header row, chevron rotates on `[open]`). Persist each panel's open/closed state per-id in `localStorage` so a user's layout survives reloads. Tradeoff to flag: `<details>` doesn't animate height by default; fine if booth-pipeline doesn't need a smooth collapse, worth confirming since they're sending their own requirements.
 - **Sticky action bar.** A `sticky bottom-0` bar (not `fixed`, so it stays inside the editor's own scroll container rather than overlapping unrelated content) holding Save/Discard, elevated surface + top border + shadow matching existing tokens. Needs an explicit unsaved-state indicator (a dot/badge on the bar itself) per the UX feedback's "make unsaved state obvious" — the bar existing isn't enough on its own.
@@ -102,7 +120,9 @@ booth-pipeline is building a first compact pass with its own existing components
 ## Open questions, summarized
 
 1. Literal top header bar vs. `NavRail` placement for the project picker (recommending `NavRail`).
-2. Confirm `GET /api/v1/projects`'s exact response shape once core's design note exists.
-3. postMessage project-sync needs sign-off from each iframe-proxied module's own embedded-code owner.
+2. ~~Confirm `GET /api/projects`'s exact response shape~~ — **resolved**, `contracts/projects.md` merged.
+3. ~~iframe project-sync mechanism~~ — **resolved**, query-string re-point on `iframe-url` approved by the coordinator's ruling; `postMessage` live-update stays an optional, no-core-change follow-up.
 4. Should `HelpHint` later grow an optional deep link into Docs? Not needed for §2a's initial release.
-5. Pipeline editor layout proposal is a starting point for reconciliation with booth-pipeline's own requirements, not a spec to hold them to.
+5. Pipeline editor layout proposal is a starting point for reconciliation with booth-pipeline's own requirements, not a spec to hold them to — now tied to §0's `design-ui` package rather than staying spec-only indefinitely.
+6. **New:** `design-ui`'s exact build mechanism (a second Vite library-mode target in this repo, as proposed in §0, vs. any alternative) — open to review.
+7. **New:** does §0's v0 scope (the primitive list) actually match what booth-pipeline's forthcoming component-requirements note needs? Can't fully confirm until that note lands.
