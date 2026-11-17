@@ -22,6 +22,8 @@ const files = [
   "components/ui/HelpHint.tsx",
   "components/ui/icons.tsx",
   "lib/cn.ts",
+  "lib/useHasHover.ts",
+  "lib/useTapToOpen.ts",
 ];
 
 for (const relPath of files) {

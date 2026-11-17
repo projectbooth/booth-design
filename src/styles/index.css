@@ -34,3 +34,85 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * docs/mobile.md's shared mobile-friendly classes. Hand-authored CSS, not Tailwind
+ * utilities — ADR 0097 compiles one stylesheet for this shell and every registered
+ * native module together, and a module's own build never needs to "see" these class
+ * names (the way Tailwind's content scanner must for a utility class) for them to
+ * resolve: there's only ever one <style> for the whole page, so any module's markup
+ * can use these names directly.
+ */
+@layer components {
+  /* Wrap a <table> in this instead of a bare `overflow-x-auto` div: adds a visible
+     edge shadow that only shows on the side(s) there's actually more to scroll to —
+     the classic background-attachment: local/scroll trick, no JS scroll listener
+     needed. Never apply overflow-x to the page itself; this is the one place a native
+     module's table should scroll. If the table sits on a background other than the
+     page's own (e.g. inside a card), override `--table-scroll-bg` on the wrapper. */
+  .table-scroll {
+    --table-scroll-bg: var(--color-bg);
+    overflow-x: auto;
+    background-image:
+      linear-gradient(to right, var(--table-scroll-bg) 0, transparent 24px),
+      linear-gradient(to left, var(--table-scroll-bg) 0, transparent 24px),
+      linear-gradient(to right, rgba(0, 0, 0, 0.14) 0, transparent 10px),
+      linear-gradient(to left, rgba(0, 0, 0, 0.14) 0, transparent 10px);
+    background-repeat: no-repeat;
+    background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+    background-position: 0 0, 100% 0, 0 0, 100% 0;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  /* A page's title row and a row of filter/sort/create actions: side by side with
+     room to spare, stacked and wrapped instead of overflowing once they don't fit. */
+  .page-header,
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .page-header {
+    justify-content: space-between;
+  }
+
+  /* A horizontal group of form fields — wraps to one field per line rather than
+     squeezing or clipping any of them. */
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .form-row > * {
+    flex: 1 1 220px;
+  }
+
+  /* A Radix Dialog.Content (or similar): a full-width sheet pinned to the bottom of
+     the screen under 640px (Tailwind's own `sm` breakpoint), a normal centered modal
+     above it. Doesn't set `position` on its own above 640px — a module's own layout
+     (centered via a flex/grid wrapper, Radix's default centering, etc.) still applies;
+     this class only takes over positioning below the breakpoint. */
+  .modal-sheet {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    max-height: 85dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  @media (min-width: 640px) {
+    .modal-sheet {
+      position: relative;
+      inset: auto;
+      width: auto;
+      max-width: 480px;
+      max-height: 85vh;
+      border-radius: var(--radius-lg);
+    }
+  }
+}
