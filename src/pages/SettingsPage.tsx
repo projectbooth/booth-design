@@ -17,13 +17,13 @@ export function SettingsPage() {
       {identity && (
         <div className="mb-6 flex items-center gap-4 rounded-lg border border-border p-5">
           <Avatar label={identity.email} size="md" />
-          <div className="flex-1">
-            <div className="text-[14.5px] font-semibold text-text">{identity.email}</div>
-            <div className="text-[13px] text-text-muted">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14.5px] font-semibold text-text">{identity.email}</div>
+            <div className="truncate text-[13px] text-text-muted">
               {activeWorkspace ? `${activeWorkspace.role} in ${activeWorkspace.workspace}` : "No active workspace"}
             </div>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => void logout()}>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void logout()}>
             Log out
           </Button>
         </div>
