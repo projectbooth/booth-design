@@ -1,92 +1,15 @@
-import { NavButton } from "./NavButton";
-import { NavSection } from "./NavSection";
-import { ProjectSwitcher } from "./ProjectSwitcher";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
-import { Avatar } from "@/components/ui/Avatar";
-import { BuildIcon, HomeIcon, ManageIcon, SettingsIcon, StoreIcon, ViewIcon } from "@/components/ui/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-import { logout } from "@/lib/auth/authClient";
-import { isProjectsEnabled } from "@/lib/featureFlags";
-import { groupModulesByNav } from "@/lib/manifest";
-import { useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
-import { useModules } from "@/lib/useModules";
+import { NavRailContent } from "./NavRailContent";
 
 /**
- * The persistent nav rail (ADR 0005: "never re-renders on navigation"). Below Home and
- * the workspace switcher: Module Store's reserved slot, then Build/View/Manage
- * (ADR 0017), then Settings + the signed-in user, exactly the layout order fixed in
- * this repo's brief.
+ * The persistent desktop nav rail (ADR 0005: "never re-renders on navigation"). Below
+ * docs/mobile.md's `desktop` breakpoint, ShellLayout mounts MobileNav instead of this —
+ * never both at once, so NavRailContent's data fetches and dropdown state exist exactly
+ * once regardless of viewport, matching this same ADR's intent for everything it wraps.
  */
 export function NavRail() {
-  const { modules } = useModules();
-  const { identity, activeWorkspace } = useSession();
-  const isOwner = activeWorkspace?.role === "owner";
-  const { theme, toggleTheme } = useTheme();
-  const grouped = groupModulesByNav(modules);
-
-  if (grouped.unplaced.length > 0 && import.meta.env.DEV) {
-    // ADR 0017: "a module that doesn't cleanly fit one of the three groups is a signal
-    // worth surfacing to the coordinator rather than guessing" — surfaced here as a
-    // dev-time console warning rather than silently dropped or guessed into a group.
-    console.warn(
-      "[booth-design] modules with hasOwnUi but missing/unrecognized navGroup:",
-      grouped.unplaced.map((m) => m.id),
-    );
-  }
-
   return (
     <nav className="flex h-full w-nav min-w-nav shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-border-subtle bg-nav-bg px-3 py-4 text-text">
-      <div className="mb-4 flex items-center gap-2 px-1">
-        <div className="h-[26px] w-[26px] shrink-0 rounded-md bg-accent" />
-        <span className="text-[13.5px] font-bold tracking-tight">Project Booth</span>
-      </div>
-
-      <WorkspaceSwitcher />
-      {isProjectsEnabled() && <ProjectSwitcher />}
-
-      <NavButton to="/" icon={<HomeIcon />}>
-        Home
-      </NavButton>
-      <div className="mb-1" />
-      <NavButton to="/store" icon={<StoreIcon />}>
-        Module Store
-      </NavButton>
-
-      <NavSection label="Build" modules={grouped.build} isOwner={isOwner} icon={<BuildIcon width={14} height={14} />} />
-      <NavSection label="View" modules={grouped.view} isOwner={isOwner} icon={<ViewIcon width={14} height={14} />} />
-      <NavSection label="Manage" modules={grouped.manage} isOwner={isOwner} icon={<ManageIcon width={14} height={14} />} />
-
-      <div className="mt-auto flex flex-col gap-1 border-t border-border-subtle pt-3">
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] text-text-muted hover:bg-bg-elevated hover:text-text"
-        >
-          <span aria-hidden>{theme === "dark" ? "☾" : "☀"}</span>
-          {theme === "dark" ? "Dark mode" : "Light mode"}
-        </button>
-        <NavButton to="/settings" icon={<SettingsIcon />}>
-          Settings
-        </NavButton>
-        {identity && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="mt-1 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left outline-none hover:bg-bg-elevated focus-visible:ring-2">
-                <Avatar label={identity.email} />
-                <span className="truncate text-[13px] font-semibold text-text">{identity.email}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-[calc(var(--nav-width)-24px)]" align="end">
-              <DropdownMenuItem onSelect={() => void logout()}>Log out</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+      <NavRailContent />
     </nav>
   );
 }
