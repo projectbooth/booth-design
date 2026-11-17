@@ -20,6 +20,13 @@
   body,
   #root {
     height: 100%;
+    /* ShellLayout's own root div (h-dvh, overflow-hidden) owns scrolling for
+       everything inside it — <main> scrolls its own content, an iframe pane scrolls
+       internally. html/body themselves must never also scroll: on iOS Safari
+       specifically, an iframe's own momentum scrolling can otherwise chain past its
+       container and rubber-band the whole page behind it (docs/mobile.md). */
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body {

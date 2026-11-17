@@ -110,5 +110,23 @@ for a consumer to change.
 
 ## Iframe-proxied apps (Streamlit, etc.)
 
-Covered separately once the iframe pane sizing work lands (brief step 3) — not yet in
-this doc.
+`IframeProxyPane` already fills its pane correctly on a phone — it's `h-full`/`w-full`
+inside `ShellLayout`'s own `h-dvh` flex layout (brief step 1), which already accounts
+for iOS Safari's dynamic toolbar, and Tailwind's preflight resets `<iframe>` to
+`display: block` so there's no stray inline-element gap. Nothing for a module to adopt
+here either; two real gaps this shell owns and has fixed:
+
+- **No body scroll behind the iframe.** `html`/`body` now set `overflow: hidden` and
+  `overscroll-behavior: none` (`src/styles/index.css`) — on iOS Safari specifically, an
+  iframe's own momentum scrolling can otherwise chain past its container and
+  rubber-band the whole page behind it.
+- **The 15-minute iframe session renewal (ADR 0069 item C) now survives a backgrounded
+  tab.** The existing renewal timer alone wasn't enough on mobile: a phone browser can
+  fully *suspend* a backgrounded tab's timers rather than merely throttle them, so the
+  interval tick might never fire while Booth is in the background. `IframeProxyPane`
+  now also renews immediately on `visibilitychange`/`focus` (the same pattern
+  `useModules.ts` already uses for its own background poll), independent of the
+  interval's own schedule.
+
+Streamlit's own sidebar collapse, and anything else about a third-party app's own
+in-iframe UI at a narrow width, is that app's business, not this shell's.

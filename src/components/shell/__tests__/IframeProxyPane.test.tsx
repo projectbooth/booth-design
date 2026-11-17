@@ -34,6 +34,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   getIframeUrl.mockReset();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+  // jsdom's default is "visible"; pin it explicitly since a prior test in this file may
+  // have shadowed the property with document.defineProperty.
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
 });
 
 afterEach(() => {
@@ -81,6 +84,59 @@ describe("IframeProxyPane session renewal (ADR 0069 item C)", () => {
 
     expect(screen.getByTitle("Notebooks")).toBeInTheDocument();
     expect(screen.queryByText(/Couldn't load/)).toBeNull();
+  });
+
+  // docs/mobile.md: a mobile browser can fully suspend a backgrounded tab's timers,
+  // not merely throttle them, so the interval tick above can't be relied on alone —
+  // same reasoning, and the same test shape, as useModules.test.ts's own visibility
+  // coverage.
+  it("renews immediately when the tab becomes visible again, not just on the next tick", async () => {
+    let call = 0;
+    getIframeUrl.mockImplementation(() => Promise.resolve(`https://shell.example/iframe/notebooks/?t=tok-${++call}`));
+    renderPane(<IframeProxyPane module={mod} />);
+    await flush();
+    expect(getIframeUrl).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(getIframeUrl).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not renew on a visibility event while the tab is still hidden", async () => {
+    getIframeUrl.mockResolvedValue("https://shell.example/iframe/notebooks/?t=tok-1");
+    renderPane(<IframeProxyPane module={mod} />);
+    await flush();
+    expect(getIframeUrl).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(getIframeUrl).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("renews immediately on regaining window focus too", async () => {
+    getIframeUrl.mockResolvedValue("https://shell.example/iframe/notebooks/?t=tok-1");
+    renderPane(<IframeProxyPane module={mod} />);
+    await flush();
+    expect(getIframeUrl).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+
+    expect(getIframeUrl).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("stops renewing once unmounted", async () => {
