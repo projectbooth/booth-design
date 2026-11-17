@@ -11,7 +11,8 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest",
-    "check:dark-variants": "node scripts/check-dark-variants.mjs"
+    "check:dark-variants": "node scripts/check-dark-variants.mjs",
+    "smoke:mobile": "node scripts/mobile-smoke.mjs"
   },
   "dependencies": {
     "@fontsource/space-mono": "^5.3.0",

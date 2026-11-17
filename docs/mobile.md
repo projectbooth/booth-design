@@ -130,3 +130,18 @@ here either; two real gaps this shell owns and has fixed:
 
 Streamlit's own sidebar collapse, and anything else about a third-party app's own
 in-iframe UI at a narrow width, is that app's business, not this shell's.
+
+## Testing
+
+- **The drawer's own mechanics** (open, close, focus, route change) are component
+  tests, not a browser smoke: `src/components/nav/__tests__/MobileNav.test.tsx`.
+- **`npm run smoke:mobile`** (`scripts/mobile-smoke.mjs`, its own CI job) boots the real
+  app against its own dev server, network mocked at the Playwright layer (no real
+  `booth-core` exists in CI), and drives the drawer exactly as a phone user would: open
+  it, navigate to Home, Catalog, and a Streamlit-shaped iframe-proxy app, back to Home.
+  Runs at both the phone target width (390px) and the tablet-portrait one (768px, still
+  inside the drawer breakpoint), in light and dark, asserting none of them ever grows a
+  horizontal scrollbar. This is a *shell* smoke test — Catalog is mocked only enough to
+  render its list view (the same shapes `src/__tests__/nativeModules.integration.test.tsx`
+  already proved correct against the real published package); asserting on Catalog's own
+  internal correctness is that package's job, not this repo's.
