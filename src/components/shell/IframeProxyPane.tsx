@@ -77,9 +77,24 @@ export function IframeProxyPane({ module }: { module: ModuleSummary }) {
     };
     const interval = setInterval(renew, RENEWAL_INTERVAL_MS);
 
+    // docs/mobile.md: a mobile browser can fully suspend a backgrounded tab's timers
+    // rather than merely throttle them (unlike desktop, where the interval above was
+    // already enough) — switch away from Booth on a phone for longer than the interval
+    // and this tick may simply never fire, so the cookie has already lapsed by the time
+    // the tab comes back. Renewing immediately on return, independent of the interval's
+    // own schedule, actually closes that gap (same pattern as useModules.ts's own
+    // visibility-triggered refetch).
+    function renewIfVisible() {
+      if (document.visibilityState === "visible") renew();
+    }
+    document.addEventListener("visibilitychange", renewIfVisible);
+    window.addEventListener("focus", renewIfVisible);
+
     return () => {
       cancelled = true;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", renewIfVisible);
+      window.removeEventListener("focus", renewIfVisible);
     };
   }, [module.id, activeWorkspace?.workspace, activeProject]);
 
