@@ -9,3 +9,19 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   };
 }
+
+// jsdom has no matchMedia either; useIsDesktop (docs/mobile.md) calls it unconditionally
+// on mount. Defaults to "not desktop" so a test that doesn't care gets the simpler of
+// the two nav chromes; a test that does care overrides window.matchMedia itself.
+if (typeof window.matchMedia === "undefined") {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }) as unknown as MediaQueryList;
+}
