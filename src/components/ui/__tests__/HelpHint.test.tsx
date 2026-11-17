@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HelpHint } from "../HelpHint";
 import { TooltipProvider } from "../Tooltip";
+
+let hasHover = true;
+vi.mock("@/lib/useHasHover", () => ({ useHasHover: () => hasHover }));
 
 function renderHint(props: Parameters<typeof HelpHint>[0]) {
   return render(
@@ -12,6 +15,10 @@ function renderHint(props: Parameters<typeof HelpHint>[0]) {
 }
 
 describe("HelpHint", () => {
+  beforeEach(() => {
+    hasHover = true;
+  });
+
   it("names the trigger with the label by default", () => {
     renderHint({ label: "Shows tables this API can write to." });
     expect(screen.getByRole("button", { name: "Shows tables this API can write to." })).toBeInTheDocument();
@@ -35,5 +42,24 @@ describe("HelpHint", () => {
   it("renders the label text as the tooltip content", () => {
     renderHint({ label: "Reachable from pretty much everywhere.", defaultOpen: true });
     expect(screen.getByText("Reachable from pretty much everywhere.")).toBeInTheDocument();
+  });
+
+  // docs/mobile.md: on a device with no hover, HelpHint switches to useTapToOpen
+  // instead of Radix's default hover/focus trigger. That hook's own toggle/outside-tap
+  // logic is covered on its own (src/lib/__tests__/useTapToOpen.test.ts) without ever
+  // mounting a live Tooltip — driving a mounted Radix Tooltip through a real open/close
+  // transition hangs under this project's CI regardless of what triggers it, simulated
+  // hover included (see HelpHint/ProjectSwitcher's own test comments). This only
+  // checks that the no-hover branch still renders correctly at mount via `defaultOpen`.
+  it("still honors defaultOpen with no hover", () => {
+    hasHover = false;
+    renderHint({ label: "Visible without any hover at all.", defaultOpen: true });
+    expect(screen.getByText("Visible without any hover at all.")).toBeInTheDocument();
+  });
+
+  it("is still closed by default with no hover", () => {
+    hasHover = false;
+    renderHint({ label: "Not shown until tapped." });
+    expect(screen.queryByText("Not shown until tapped.")).not.toBeInTheDocument();
   });
 });

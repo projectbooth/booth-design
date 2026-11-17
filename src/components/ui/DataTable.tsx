@@ -25,7 +25,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, emptyState }: 
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="table-scroll rounded-lg border border-border">
       <table className="w-full border-collapse text-left text-[13px]">
         <thead>
           <tr className="border-b border-border bg-bg-sunken">
