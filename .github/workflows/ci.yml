@@ -18,7 +18,9 @@ name: CI
 #
 # `dark-mode-cascade` is its own job, not folded into `test`, because it needs a real
 # browser engine (jsdom, what `test` runs under, has no CSS cascade at all — see ADR
-# 0097 and scripts/check-dark-variants.mjs's own header comment for why).
+# 0097 and scripts/check-dark-variants.mjs's own header comment for why). `mobile-smoke`
+# is the same shape of job for the same reason, guarding docs/mobile.md's phone-friendly
+# viewing brief instead (scripts/mobile-smoke.mjs's own header comment).
 on:
   push:
     branches: [main]
@@ -89,6 +91,41 @@ jobs:
 
       - name: Check dark:bg-* variants render in dark mode
         run: npm run check:dark-variants
+
+  # docs/mobile.md / the phone-friendly viewing brief, step 5: boots the actual app (its
+  # own dev server, network mocked at the Playwright layer — no real booth-core exists
+  # in CI) and drives the off-canvas drawer exactly as a phone user would, at both the
+  # phone target width and the tablet-portrait one, in light and dark, asserting no
+  # screen ever grows a horizontal scrollbar. Needs a real browser engine (same reason
+  # as dark-mode-cascade above) and the real @projectbooth/catalog-ui package installed,
+  # so it gets npm ci's GitHub Packages auth too.
+  mobile-smoke:
+    runs-on: ubuntu-24.04
+    # A hard backstop, not just a nicety: this job's very first CI run hung for the
+    # full 6-hour default job timeout instead of failing fast (see the comment next to
+    # scripts/mobile-smoke.mjs's own main() call for the actual fix). Thirty times this
+    # job's ~20s local runtime is generous headroom for CI being slower, while still
+    # failing in minutes, not hours, if a future hang isn't caught by that fix.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@projectbooth"
+
+      - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Mobile drawer smoke test (no horizontal scroll, 390/768px, light/dark)
+        run: npm run smoke:mobile
 
   # design-ui/ is a second, independent npm package (@projectbooth/design-ui) published from
   # this repo — see design-ui/README.md. Its own node_modules/package-lock.json, kept separate
