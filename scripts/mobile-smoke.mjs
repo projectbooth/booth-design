@@ -61,6 +61,8 @@ function startDevServer() {
   // A single command string, not an args array, with shell: true -- avoids both
   // Windows's EINVAL spawning a .cmd file directly and Node's shell+argv-array
   // deprecation warning (there's no user input in this fixed command to escape).
+  // detached: true puts the shell in its own process group (POSIX) so stopDevServer
+  // can kill that whole group at once -- see its own comment for why that matters.
   const child = spawn(`"${viteBin}" --port ${PORT} --strictPort`, {
     cwd: repoRoot,
     env: {
@@ -70,20 +72,32 @@ function startDevServer() {
     },
     stdio: "pipe",
     shell: true,
+    detached: process.platform !== "win32",
   });
   child.stderr.on("data", (d) => process.stderr.write(d));
   return child;
 }
 
-// shell: true means `child` is cmd.exe/sh, not vite itself -- plain child.kill() only
-// ever terminates that shell wrapper on Windows (it does exec-replace on POSIX, so
-// child.kill() alone already works there), leaving the real dev server orphaned and
-// still holding the port. Killing the whole tree is what actually frees PORT.
+// shell: true means `child` is cmd.exe/sh, not vite itself. Confirmed live in CI
+// (ubuntu-24.04's /bin/sh does NOT exec-replace a single simple command the way bash
+// sometimes does): plain child.kill() only ever signals that shell wrapper, never the
+// vite/node/esbuild processes it actually spawned underneath -- the real dev server
+// stayed alive and the script's own event loop never drained, hanging the whole CI job
+// for 6 hours until GitHub's own job timeout force-cancelled it. Killing the whole
+// process tree is what actually frees PORT and lets this process exit:
+// - Windows: taskkill /T walks the tree itself.
+// - POSIX: `detached: true` above put the shell in its own process group (same id as
+//   its pid, since it's the group leader); killing with a negative pid signals that
+//   entire group, not just the shell.
 function stopDevServer(child) {
   if (process.platform === "win32") {
     spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
   } else {
-    child.kill();
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {
+      child.kill("SIGKILL"); // group already gone -- fall back to the direct child
+    }
   }
 }
 
@@ -246,7 +260,19 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+// A real incident, not a hypothetical: the first CI run of this script hung for the
+// full 6-hour job timeout instead of finishing in ~20s. main()'s own logic completed
+// (stopDevServer had already run), but the Node process itself never exited -- vite's
+// dev server spawns its own grandchild processes (esbuild's dependency-optimizer
+// workers) that inherit this script's piped stdout/stderr, and SIGTERM to vite alone
+// doesn't guarantee those grandchildren (or their inherited pipe fds) go away with it.
+// A live Readable stream on an open fd keeps Node's event loop alive indefinitely, so
+// waiting for a clean drain isn't reliable here -- an explicit process.exit() is, since
+// this only ever runs in an ephemeral CI job (or a local dev run) where a leftover
+// orphaned process is harmless and gone the moment the job/shell ends anyway.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

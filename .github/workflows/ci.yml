@@ -101,6 +101,12 @@ jobs:
   # so it gets npm ci's GitHub Packages auth too.
   mobile-smoke:
     runs-on: ubuntu-24.04
+    # A hard backstop, not just a nicety: this job's very first CI run hung for the
+    # full 6-hour default job timeout instead of failing fast (see the comment next to
+    # scripts/mobile-smoke.mjs's own main() call for the actual fix). Thirty times this
+    # job's ~20s local runtime is generous headroom for CI being slower, while still
+    # failing in minutes, not hours, if a future hang isn't caught by that fix.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
