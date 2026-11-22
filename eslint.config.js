@@ -13,9 +13,11 @@ export default tseslint.config(
     },
   },
   {
-    // CI tooling (scripts/check-dark-variants.mjs): a Node script whose page.evaluate()
-    // callbacks also reference browser globals directly, since they execute inside the
-    // Playwright-controlled page, not this process.
+    // CI tooling (scripts/check-dark-variants.mjs, scripts/mobile-smoke.mjs): a Node
+    // script whose page.evaluate()/addInitScript() callbacks also reference browser
+    // globals directly, since they execute inside the Playwright-controlled page, not
+    // this process. fetch/setTimeout are this process's own (Node 18+'s global fetch,
+    // used by mobile-smoke.mjs's dev-server readiness poll).
     files: ["scripts/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
@@ -23,8 +25,12 @@ export default tseslint.config(
       globals: {
         console: "readonly",
         process: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
         document: "readonly",
         getComputedStyle: "readonly",
+        localStorage: "readonly",
+        sessionStorage: "readonly",
       },
     },
   },
